@@ -1,0 +1,12 @@
+# Ignora absolutamente tudo por padrão
+*
+
+# Abre exceções apenas para o que o Docker precisa para o BUILD
+!requirements.txt
+!Dockerfile
+
+# Ignora pastas de metadados que o host cria e podem conflitar
+.git/
+.gitignore
+.Rproj.user/
+*.Rproj

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Rotulador NER</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background-color: #f5f5f5;
+    color: #212121;
+    transition: all 0.3s;
+    user-select: none;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+}
+
+.main-container {
+    width: 100%;
+    max-width: 850px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+#texto {
+    line-height: 1.6;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.controles-superiores {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+#texto span{
+    padding: 4px;
+    margin: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.selecionado{ background-color: #FFD54F; color: #000; }
+
+.entidade-nome { background-color: #2196F3; color: #fff; font-weight: bold; }
+.entidade-empresa { background-color: #4CAF50; color: #fff; font-weight: bold; }
+.entidade-endereco { background-color: #9C27B0; color: #fff; font-weight: bold; }
+
+#texto span:hover{ background-color: #FFF176; }
+
+button{
+    margin: 5px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.2s;
+}
+
+button:hover{opacity: 0.9;}
+
+button.nome{background-color: #2196F3; color:#fff;}
+button.empresa{background-color: #4CAF50; color:#fff;}
+button.endereco{background-color: #9C27B0; color:#fff;}
+
+#progresso{font-weight:bold;color:#1976D2;}
+
+body.dark{ background-color: #121212; color: #e0e0e0; }
+body.dark #texto span{ color: #e0e0e0; }
+body.dark .selecionado{ background-color: #FFC107; color: #000; }
+
+body.dark .entidade-nome { background-color: #64B5F6; color: #000; }
+body.dark .entidade-empresa { background-color: #81C784; color: #000; }
+body.dark .entidade-endereco { background-color: #BA68C8; color: #000; }
+body.dark #progresso{ color: #90CAF9; }
+</style>
+</head>
+
+<body oncopy="return false">
+    <div class="main-container">
+        <h2>Rotulador de Entidades</h2>
+
+        <div style="margin-bottom: 15px;">
+            Progresso: <span id="progresso">0</span>
+            <button onclick="toggleTema()">🌙 Tema Escuro</button>
+        </div>
+
+        <div class="controles-superiores">
+            <div>
+                <label><strong>Caçar Palavra:</strong></label>
+                <input type="text" id="inputBusca" placeholder="Ex: Nome, Endereço..." onkeyup="aplicarFiltros()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 150px;">
+            </div>
+
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="ocultarRotulados" checked onchange="aplicarFiltros()"> 
+                <strong>Ocultar já rotulados</strong>
+            </label>
+        </div>
+
+        <div id="texto" style="user-select: text;"></div>
+        <br>
+
+        <div>
+            <button class="nome" onclick="definirLabel('NOME')">Nome</button>
+            <button class="empresa" onclick="definirLabel('EMPRESA')">Empresa</button>
+            <button class="endereco" onclick="definirLabel('ENDERECO')">Endereço</button>
+        </div>
+        <br>
+
+        <div>
+            <button onclick="desfazer()">Desfazer</button>
+            <button onclick="voltar()">Voltar texto</button>
+            <button onclick="proximo()">Próximo texto</button>
+            <button onclick="pular()">Pular texto</button>
+        </div>
+    </div> <script>
+
+let darkMode = false;
+function toggleTema() {
+    darkMode = !darkMode;
+    document.body.classList.toggle("dark", darkMode);
+}
+
+let textos = [];
+let textosFiltrados = [];
+let idsRotulados = [];
+let idsPulados = [];
+let indiceAtual = 0;
+let palavras = [];
+let anotacoes = [];
+let bancoDeDadosLocal = {};
+
+const labelClass = {
+    "NOME": "entidade-nome", 
+    "EMPRESA": "entidade-empresa", 
+    "ENDERECO": "entidade-endereco"
+};
+
+async function carregarTextos() {
+    try {
+        let resp = await fetch("/textos");
+        let payload = await resp.json();
+        
+        textos = payload.textos;
+        idsRotulados = payload.ids_feitos;
+        idsPulados = payload.ids_pulados || [];
+        
+        payload.anotacoes_salvas.forEach(reg => {
+            bancoDeDadosLocal[reg.id_descricao] = reg.entities.map(e => ({
+                start: e[0], end: e[1], label: e[2], id_descricao: reg.id_descricao
+            }));
+        });
+        aplicarFiltros(); 
+    } catch (e) {
+        document.getElementById("texto").innerText = "Erro ao conectar com o servidor backend.";
+    }
+}
+
+function aplicarFiltros() {
+    let termo = document.getElementById("inputBusca").value.toLowerCase().trim();
+    let ocultar = document.getElementById("ocultarRotulados").checked; 
+
+    textosFiltrados = textos.filter(t => {
+        let passaBusca = termo === "" || t.descricao.toLowerCase().includes(termo);
+        let passaRotulo = ocultar ? (!idsRotulados.includes(t.id_descricao) && !idsPulados.includes(t.id_descricao)) : true; 
+
+        return passaBusca && passaRotulo;
+    });
+
+    indiceAtual = 0; 
+    mostrarTexto();
+}
+
+async function mostrarTexto() {
+    const container = document.getElementById("texto");
+    if (!textosFiltrados[indiceAtual]) return;
+    
+    let textoObj = textosFiltrados[indiceAtual];
+    let textoStr = textoObj.descricao;
+    const idAtual = textoObj.id_descricao;
+
+    if (bancoDeDadosLocal[idAtual]) {
+        anotacoes = [...bancoDeDadosLocal[idAtual]];
+    } 
+    else {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            let resp = await fetch("/sugerir", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ texto: textoStr }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (resp.ok) {
+                let data = await resp.json();
+                anotacoes = data.sugestoes.map(s => ({
+                    start: s[0], end: s[1], label: s[2], id_descricao: idAtual
+                }));
+                console.log("Sugestões da IA carregadas.");
+            } else {
+                throw new Error();
+            }
+        } catch (e) {
+            console.warn("Modo Manual: IA não respondeu ou endpoint inexistente.");
+            anotacoes = [];
+        }
+        bancoDeDadosLocal[idAtual] = [...anotacoes];
+    }
+
+    container.innerHTML = "";
+    palavras = [];
+    let regex = /(\S+)|(\s+)/g;
+    let match;
+    let spanIndex = 0;
+    
+    while ((match = regex.exec(textoStr)) !== null) {
+        let token = match[0];
+        let start = match.index;
+        let end = start + token.length;
+        if (match[2]) {
+            container.appendChild(document.createTextNode(token));
+            continue;
+        }
+        let span = document.createElement("span");
+        span.innerText = token;
+        span.dataset.palavraIndex = spanIndex;
+        anotacoes.forEach(a => {
+            if (start < a.end && end > a.start) {
+                span.classList.add(labelClass[a.label]);
+            }
+        });
+        span.onclick = () => toggleSelecaoContigua(span);
+        span.oncontextmenu = (e) => { e.preventDefault(); removerLabel(span); };
+        container.appendChild(span);
+        palavras.push({ token, start, end });
+        spanIndex++;
+    }
+    atualizarProgresso();
+}
+
+function toggleSelecaoContigua(span) {
+    let spans = Array.from(document.querySelectorAll("#texto span"));
+    let index = parseInt(span.dataset.palavraIndex);
+    let selecionados = spans.filter(s => s.classList.contains("selecionado"));
+    if (selecionados.length > 0) {
+        let indices = selecionados.map(s => parseInt(s.dataset.palavraIndex));
+        let min = Math.min(...indices, index);
+        let max = Math.max(...indices, index);
+        spans.forEach(s => s.classList.remove("selecionado"));
+        for (let i = min; i <= max; i++) {
+            spans[i].classList.add("selecionado");
+        }
+    } else {
+        span.classList.add("selecionado");
+    }
+}
+
+function definirLabel(label) {
+    let startPos, endPos, textoOriginal;
+    const idAtual = textosFiltrados[indiceAtual].id_descricao;
+    
+        let selecionados = Array.from(document.querySelectorAll("#texto span.selecionado"));
+        if (selecionados.length === 0) return;
+        
+        let indices = selecionados.map(s => parseInt(s.dataset.palavraIndex));
+        let startIdx = Math.min(...indices);
+        let endIdx = Math.max(...indices);
+        
+        startPos = palavras[startIdx].start;
+        endPos = palavras[endIdx].end;
+        textoOriginal = textosFiltrados[indiceAtual].descricao.substring(startPos, endPos);
+        
+    anotacoes = anotacoes.filter(a => !(startPos < a.end && endPos > a.start));
+    anotacoes.push({
+        id_descricao: idAtual,
+        entidade: textoOriginal,
+        start: startPos,
+        end: endPos,
+        label: label
+    });
+    bancoDeDadosLocal[idAtual] = [...anotacoes];
+    mostrarTexto();
+}
+
+function removerLabel(span) {
+    const index = parseInt(span.dataset.palavraIndex);
+    const palavra = palavras[index];
+    const idAtual = textosFiltrados[indiceAtual].id_descricao;
+    anotacoes = anotacoes.filter(a => {
+        const intercepta = (palavra.start < a.end && palavra.end > a.start);
+        return !intercepta;
+    });
+    bancoDeDadosLocal[idAtual] = [...anotacoes];
+    mostrarTexto();
+}
+
+function desfazer() {
+    const idAtual = textosFiltrados[indiceAtual].id_descricao;
+    anotacoes.pop();
+    bancoDeDadosLocal[idAtual] = [...anotacoes];
+    mostrarTexto();
+}
+
+async function proximo() {
+    const idAtual = textosFiltrados[indiceAtual].id_descricao;
+    bancoDeDadosLocal[idAtual] = [...anotacoes];
+    if (!idsRotulados.includes(idAtual)) {
+        idsRotulados.push(idAtual);
+    }
+    const payload = {
+        id_descricao: idAtual,
+        anotacoes: anotacoes
+    };
+    try {
+        await fetch("/rotulo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        indiceAtual++;
+        mostrarTexto();
+    } catch (e) {
+        alert("Erro ao salvar. Verifique o servidor.");
+    }
+}
+
+function voltar() {
+    if (indiceAtual > 0) {
+        const idAtual = textosFiltrados[indiceAtual].id_descricao;
+        bancoDeDadosLocal[idAtual] = [...anotacoes];
+        indiceAtual--;
+        mostrarTexto();
+    }
+}
+
+async function pular() {
+    if (indiceAtual >= textosFiltrados.length) return;
+
+    const idAtual = textosFiltrados[indiceAtual].id_descricao;
+
+    if (!idsPulados.includes(idAtual)) {
+        idsPulados.push(idAtual);
+    }
+
+    try {
+        await fetch("/pular", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id_descricao: idAtual })
+        });
+    } catch (e) {
+        console.error("Servidor falhou ao salvar o pulo, mas continuaremos localmente.");
+    }
+
+    if (indiceAtual === textosFiltrados.length - 1) {
+        indiceAtual++; 
+        mostrarTexto();
+        return;
+    }
+
+    indiceAtual++;
+    mostrarTexto();
+}
+
+function atualizarProgresso() {
+    let total = textosFiltrados.length;
+    let atual = total > 0 ? indiceAtual + 1 : 0;
+    document.getElementById("progresso").innerText = `${atual} / ${total}`;
+}
+
+carregarTextos();
+</script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+---
+title: "Treinamento de Modelo (NER) - ANTT/OUVIDORIA/COATD"
+subtitle: "Utilização da biblioteca spaCy para treinamento de modelo (NER)"
+author: 
+  - name: "Pedro Muniz Cherulli"
+    affiliation: "COATD - Coordenação de Análise e Tratamento de Dados"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+# Análise Exploratória e Preparação dos Dados
+
+Análise exploratória dos dados é uma etapa crucial para entender a estrutura, qualidade e distribuição das informações presentes no dataset. No contexto do treinamento de um modelo de Reconhecimento de Entidades Nomeadas (NER), é fundamental avaliar como os dados foram anotados, quais categorias de entidades estão presentes e se existem textos sem anotações.
+
+## Análise Exploratória
+
+### Como foi realizado o processo de anotação dos dados?
+
+Os dados foram anotados manualmente, onde cada texto foi revisado para identificar e marcar entidades relevantes. As anotações seguem o formato de tuplas (start, end, label), indicando a posição inicial e final da entidade no texto, bem como a categoria da entidade.
+
+```{python}
+#| echo: false
+#| label: importacao-bibliotecas
+
+import spacy
+import pandas as pd
+from spacy.tokens import DocBin
+import json
+import random
+import shutil
+import subprocess
+from collections import Counter
+from pathlib import Path
+```
+
+```{python}
+#| echo: false
+#| label: analise-exploratoria
+
+BASE_DIR = Path.cwd().parents[1]
+DATA_DIR = BASE_DIR / "data" / "raw" / "json"
+MODELS_DIR = BASE_DIR / "models"
+MODELO_V1_DIR = MODELS_DIR / "v1_modelo_inicial"
+
+if MODELO_V1_DIR.exists():
+    shutil.rmtree(MODELO_V1_DIR)
+
+MODELO_V1_DIR.mkdir(parents=True, exist_ok=True)
+
+caminho_json_dados = DATA_DIR / "dataset_rotulado.json"
+caminho_train = MODELO_V1_DIR / "train.spacy"
+caminho_dev = MODELO_V1_DIR / "dev.spacy"
+caminho_config = MODELO_V1_DIR / "config.cfg"
+
+with open(caminho_json_dados, "r", encoding="utf-8") as f:
+    dados_totais = json.load(f)
+
+todas_labels = [label for item in dados_totais for _, _, label in item.get("entities", [])]
+textos_vazios = sum(1 for item in dados_totais if len(item.get("entities", [])) == 0)
+contagem_total = Counter(todas_labels)
+
+# Exibição limpa
+print(f"--- Análise do Conjunto de Dados Rotulados --- \n")
+print(f"Total de textos lidos: {len(dados_totais)}")
+print(f"Textos sem nenhuma entidade: {textos_vazios}")
+print("\n--- Contagem por Categoria ---")
+
+for label, qtd in contagem_total.most_common(): 
+    print(f"{label}: {qtd} marcações")
+```
+
+## Divisão dos Dados
+
+### Divisão em conjunto de Treino e Validação
+
+Após a análise exploratória, os dados foram divididos em dois conjuntos: um para treino (80%) e outro para validação (20%). Essa divisão é essencial para avaliar o desempenho do modelo em dados que ele não viu durante o treinamento, garantindo uma avaliação mais realista da sua capacidade de generalização.
+
+```{python}
+#| echo: false
+#| label: divisao-dados
+
+random.seed(42)
+random.shuffle(dados_totais)
+
+tamanho_treino = int(len(dados_totais) * 0.8)
+dados_treino = dados_totais[:tamanho_treino]
+dados_teste = dados_totais[tamanho_treino:]
+
+nlp = spacy.blank("pt")
+
+def converter_para_docbin(dados_lista, caminho_saida):
+    doc_bin = DocBin()
+    entidades_ignoradas = 0
+    
+    for item in dados_lista:
+        doc = nlp.make_doc(item["text"])
+        ents = []
+        for start, end, label in item["entities"]:
+            span = doc.char_span(start, end, label=label, alignment_mode="contract")
+            
+            if span is not None:
+                ents.append(span)
+            else:
+                entidades_ignoradas += 1
+                trecho_falho = item["text"][start:end]
+                print(f"ERRO DE ALINHAMENTO ({label}): '{trecho_falho}' no texto começando com '{item['text'][:30]}...'")
+                
+        doc.ents = spacy.util.filter_spans(ents)
+        doc_bin.add(doc)
+            
+    doc_bin.to_disk(caminho_saida)
+    if entidades_ignoradas > 0:
+        print(f"ALERTA: {entidades_ignoradas} entidades foram descartadas no arquivo {caminho_saida.name}!")
+        
+    return len(dados_lista)
+
+print("Convertendo base de Treino...")
+qtd_train = converter_para_docbin(dados_treino, caminho_train)
+print("\nConvertendo base de Validação...")
+qtd_dev = converter_para_docbin(dados_teste, caminho_dev)
+
+ents_treino = sum(len(item.get("entities", [])) for item in dados_treino)
+ents_teste = sum(len(item.get("entities", [])) for item in dados_teste)
+
+vazios_treino = sum(1 for item in dados_treino if not item.get("entities"))
+vazios_teste = sum(1 for item in dados_teste if not item.get("entities"))
+
+labels_treino = Counter(label for item in dados_treino for _, _, label in item.get("entities", []))
+labels_teste = Counter(label for item in dados_teste for _, _, label in item.get("entities", []))
+
+print(f"\nResumo da Divisão:")
+print(f"Textos -> Treino: {qtd_train} | Validação: {qtd_dev}")
+print(f"Entidades Totais -> Treino: {ents_treino} | Validação: {ents_teste}")
+print(f"Textos Vazios -> Treino: {vazios_treino} | Validação: {vazios_teste}")
+print(f"Distribuição Treino: {dict(labels_treino)}")
+print(f"Distribuição Validação: {dict(labels_teste)}")
+```
+
+# Treinamento do Modelo
+
+O treinamento do modelo de NER foi realizado utilizando a biblioteca spaCy, que é amplamente utilizada para tarefas de Processamento de Linguagem Natural (NLP). O processo envolveu a configuração do ambiente, preparação dos dados e execução do treinamento propriamente dito.
+
+## Configuração do Ambiente e Treinamento
+
+### Instalação do modelo pré-treinado e configuração do pipeline
+
+Como ponto de partida, foi necessário instalar o modelo pré-treinado "pt_core_news_lg", que contém vetores de palavras e informações linguísticas específicas para o português. Em seguida, foi criada uma configuração personalizada para o treinamento do modelo de NER, otimizando para precisão. Porém foi necessário realizar uma modificação manual na configuração para garantir que os vetores do modelo pré-treinado fossem utilizados durante o treinamento, o que pode melhorar significativamente a capacidade do modelo de reconhecer entidades.
+
+```{python}
+#| echo: false
+#| label: configuracao-treinamento
+
+subprocess.run([
+    "python", "-m", "spacy", "init", "config", 
+    str(caminho_config), 
+    "--lang", "pt", 
+    "--pipeline", "ner", 
+    "--optimize", "accuracy", 
+    "--force"
+], check=True)
+```
+
+### Verificação e modificação da configuração para utilização dos vetores pré-treinados
+
+Vetores pré-treinados são representações numéricas de palavras que capturam semântica e contexto, o que pode melhorar significativamente o desempenho do modelo de NER. No entanto, a configuração gerada inicialmente não incluía a referência aos vetores pré-treinados. Portanto, foi necessário abrir o arquivo de configuração e modificar a linha correspondente para garantir que os vetores do modelo "pt_core_news_lg" fossem utilizados durante o treinamento.
+
+```{python}
+#| echo: false
+#| label: modificacao-configuracao
+
+with open(caminho_config, "r", encoding="utf-8") as f:
+    cfg_text = f.read()
+
+modificacoes = {
+    'vectors = null': 'vectors = "pt_core_news_lg"',
+    'ents_f = 1.0': 'ents_f = 0.0',
+    'ents_p = 0.0': 'ents_p = 0.0',
+    'ents_r = 0.0': 'ents_r = 1.0'
+}
+
+for antes, depois in modificacoes.items():
+    cfg_text = cfg_text.replace(antes, depois)
+
+with open(caminho_config, "w", encoding="utf-8") as f:
+    f.write(cfg_text)
+
+print("Configuração gerada e otimizada com sucesso.")
+```
+
+### Execução do treinamento
+
+O modelo foi treinado utilizando o comando de treinamento do spaCy, especificando o caminho para a configuração personalizada, os arquivos de treino e validação, e o diretório de saída onde o modelo treinado será salvo. O processo de treinamento pode levar algum tempo, dependendo do tamanho do dataset e dos recursos computacionais disponíveis.
+ spacy download pt_core_news_lg
+
+```{python}
+#| echo: false
+#| label: execucao-treinamento
+
+print("Iniciando o treinamento (isso pode levar algum tempo)...")
+
+subprocess.run([
+    "python", "-m", "spacy", "train", 
+    str(caminho_config),
+    "--output", str(MODELO_V1_DIR),
+    "--paths.train", str(caminho_train),
+    "--paths.dev", str(caminho_dev)
+], check=True)
+
+print("\nTreinamento concluído. Gerando avaliação...")
+```
+
+```{python}
+#| echo: false
+#| label: avaliacao-modelo
+
+subprocess.run([
+    "python", "-m", "spacy", "evaluate", 
+    str(caminho_modelo_treinado), 
+    str(caminho_dev)
+], check=True)
+```
+
+### Interpretação dos resultados e avaliação do modelo
+
+Após o treinamento, o modelo foi avaliado utilizando métricas como precisão, recall e F1-score, que são fundamentais para entender a performance do modelo em reconhecer entidades corretamente. A precisão indica a proporção de entidades identificadas corretamente em relação ao total de entidades identificadas pelo modelo, enquanto o recall indica a proporção de entidades identificadas corretamente em relação ao total de entidades presentes no dataset. O F1-score é a média harmônica entre precisão e recall, fornecendo uma medida equilibrada da performance do modelo. Abaixo segue uma explicação mais detalhada de cada métrica:
+
+-   **E** (*Epochs*): Número de vezes que o modelo passou por todo o conjunto de treinamento. As vezes que o modelo é exposto aos dados de treinamento podem influenciar a capacidade de aprendizado, mas um número excessivo pode levar ao overfitting. Em resumo, as *Epochs* são quantas vezes o modelo "leu" o conjunto de dados para melhorar seu desempenho.
+
+-   **\#** (Updates): Número de atualizações realizadas no modelo durante o treinamento. Cada atualização ocorre após a apresentação de um lote de dados, e o número total de atualizações pode indicar a quantidade de aprendizado que ocorreu.
+
+-   **LOSS TOK2VEC**: Perda associada à tarefa de aprendizado de vetores de palavras. Uma perda menor indica que o modelo está aprendendo representações mais eficazes para as palavras, ou seja, o quanto o modelo ainda está errando ao tentar transformar palavras em conceitos numéricos.
+
+-   **LOSS NER**: Perda associada à tarefa de reconhecimento de entidades nomeadas. Uma perda menor indica que o modelo está melhorando na identificação correta das entidades no texto. Em inteligência artificial, *Loss* é o nome que damos para o erro Se o modelo acha que "cachorro" e "geladeira" são palavras parecidas, o *Loss* será alto (ele errou feio).
+
+-   **ENTS_F**: F1-score para a tarefa de reconhecimento de entidades nomeadas. Um F1-score mais alto indica um melhor equilíbrio entre precisão e recall, sugerindo que o modelo está identificando as entidades de forma mais eficaz.
+
+-   **ENTS_P**: Precisão para a tarefa de reconhecimento de entidades nomeadas. Uma precisão mais alta indica que o modelo está identificando corretamente as entidades que reconhece, ou seja, quando o modelo diz "isso é uma entidade", ele está certo na maioria das vezes.
+
+-   **ENTS_R**: Recall para a tarefa de reconhecimento de entidades nomeadas. Um recall mais alto indica que o modelo está identificando uma maior proporção das entidades presentes no dataset, ou seja, ele está encontrando a maioria das entidades que existem.
+
+-   **Score**: Ele é o mesmo valor do F1-score, mas é apresentado como uma métrica geral de desempenho do modelo. Um Score mais alto indica um melhor desempenho geral na tarefa de reconhecimento de entidades nomeadas.
+
+## Teste do modelo treinado
+
+### Exposição do modelo a um texto de exemplo para verificar o reconhecimento de entidades.
+
+Após o treinamento, o modelo foi testado utilizando um texto de exemplo para verificar se as entidades foram reconhecidas corretamente. O modelo treinado foi carregado e aplicado ao texto de teste, e as entidades identificadas foram exibidas com suas respectivas categorias.
+
+```{python}
+#| echo: false
+#| label: teste-modelo
+
+caminho_modelo = "../../models/v1_modelo_inicial/model-best"
+nlp = spacy.load(caminho_modelo)
+
+texto_teste = """
+OLÁ ,GOSTARIA DE FAZER UMA RECLAMAÇÃO SOBRE O SERVIÇO DE TRANSPORTE DE CARGA DA EMPRESA XYZ LOGÍSTICA LTDA, LOCALIZADA NA RUA DAS FLORES, 123, SÃO PAULO. O MOTORISTA CHEGOU ATRASADO E O VEÍCULO ESTAVA EM MÁS CONDIÇÕES. POR FAVOR, ENTREM EM CONTATO PARA RESOLVER ESSA SITUAÇÃO. MEU NOME É PEDRO CHERULLI E MEU TELEFONE É (99) 99999-9999.
+""".upper()
+
+doc = nlp(texto_teste)
+
+print("Entidades Encontradas pela IA:")
+print("-" * 40)
+
+if len(doc.ents) == 0:
+    print("Nenhuma entidade encontrada.")
+else:
+    for entidade in doc.ents:
+        print(f"[{entidade.label_}] -> {entidade.text}")
+```

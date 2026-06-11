@@ -1,0 +1,434 @@
+---
+title: "Modelo de Anonimização Inteligente para Ouvidorias Públicas - ANTT/OUVIDORIA/COATD"
+subtitle: "Anonimização de Dados Utilizando PLN e Regex"
+author:
+  - name: "Pedro Muniz Cherulli"
+    affiliation: "COATD - Coordenação de Análise e Tratamento de Dados"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+# Introdução à Anonimização de Dados
+
+## Qual o objetivo do projeto?
+
+O objetivo deste projeto é desenvolver um processo de anonimização de dados utilizando técnicas de Processamento de Linguagem Natural `PLN` e expressões regulares `regex`. O foco é garantir a privacidade dos dados, removendo ou mascarando informações sensíveis, enquanto se mantém a integridade e a utilidade dos dados para análises futuras.
+
+### Qual o cenário atual da Ouvidoria?
+
+A Ouvidoria da **ANTT** (Agência Nacional de Transportes Terrestres) opera de forma multicanal, tendo como meios de entrada: `Fala.BR`, `WhatsApp`, `Chat`, `Telefone (166)`, `Pessoalmente` e `Carta`. Contudo, a presença de dados pessoais protegidos pela @lgpd2018 impõe barreiras à transmissão dessas informações para as unidades finalísticas. Sem um processo de anonimização ou tratamento adequado, o potencial de utilização desses dados para a melhoria de processos e serviços acaba sendo subutilizado.
+
+### Qual o impacto da anonimização de dados na melhoria dos serviços prestados pela Ouvidoria?
+
+A anonimização de dados tem um impacto significativo na melhoria dos serviços prestados pela Ouvidoria, pois permite que as informações coletadas sejam utilizadas de forma **segura e ética** para análises e pesquisas. Com dados anonimizados, a Ouvidoria pode **identificar padrões**, **tendências** e **áreas de melhoria** nos serviços oferecidos, **sem comprometer a privacidade dos cidadãos**. Isso possibilita a implementação de ações corretivas e preventivas mais eficazes, além de promover uma maior transparência e confiança entre a Ouvidoria e os usuários dos serviços.
+
+## Quais são os desafios enfrentados?
+
+1.  **Identificação de Informações Sensíveis**: Identificar corretamente quais informações são sensíveis e precisam ser anonimizadas, como nomes, endereços, números de telefone, e-mails, etc.
+
+2.  **Manutenção da Utilidade dos Dados**: Garantir que os dados anonimizados ainda sejam úteis para análises e pesquisas, preservando a estrutura e o contexto das informações.
+
+3.  **Equilíbrio entre Anonimização e Precisão**: Encontrar um equilíbrio entre o nível de anonimização e a precisão dos dados, evitando a perda excessiva de informações relevantes.
+
+4.  **Automatização do Processo**: Desenvolver um processo automatizado que possa ser aplicado a grandes volumes de dados de forma eficiente e consistente.
+
+5.  **Conformidade com Regulamentações**: Assegurar que o processo de anonimização esteja em conformidade com as regulamentações de privacidade de dados, como a LGPD (Lei Geral de Proteção de Dados) no @lgpd2018
+
+```{python}
+#| echo: false
+#| label: importacao-bibliotecas
+
+import pandas as pd
+from IPython.display import Markdown, display
+import seaborn as sns
+import matplotlib.pyplot as plt
+import re
+import os
+import requests
+import spacy
+from datetime import datetime, timedelta
+from dotenv import load_dotenv, find_dotenv
+```
+
+```{python}
+#| echo: false
+#| label: extracao-ids-api-falabr
+
+load_dotenv(find_dotenv())
+headers = {
+    "Authorization": f"Bearer {os.getenv('TOKEN_API_OUVIDORIA')}", 
+    "Accept": "application/json"
+}
+
+data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
+data_limite = datetime.today().date()
+url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
+
+lista_ids = []
+
+while data_atual <= data_limite:
+    str_data = data_atual.strftime("%d/%m/%Y")
+
+    print(f"Extraindo dados do dia: {str_data}")
+    
+    parametros = {
+        "dataCadastroInicio": str_data,
+        "dataCadastroFim": str_data
+    }
+    
+    resposta = requests.get(url_api, headers=headers, params=parametros)
+    
+    if resposta.status_code == 200:
+        dados = resposta.json()
+        
+        if dados:
+            for item in dados:
+                if "IdManifestacao" in item:
+                    lista_ids.append(item["IdManifestacao"])
+        
+    data_atual += timedelta(days=1)
+
+print(f"Extração concluída! {len(lista_ids)} IDs salvos na lista.")
+```
+
+```{python}
+#| echo: false
+#| label: salvar-ids
+
+caminho_arquivo = "../../data/raw/txt/ids_manifestacoes.txt"
+
+if os.path.exists(caminho_arquivo):
+    os.remove(caminho_arquivo)
+
+with open(caminho_arquivo, "w") as arquivo:
+    for lista in lista_ids:
+        arquivo.write(f"{lista}\n")
+```
+
+```{python}
+#| include: false
+#| label: extracao-detalhes-manifestacoes
+
+dados_completos = []
+contagem = 0
+
+load_dotenv(find_dotenv())
+headers = {
+    "Authorization": f"Bearer {os.getenv('TOKEN_API_OUVIDORIA')}", 
+    "Accept": "application/json"
+}
+
+with open("../../data/raw/txt/ids_manifestacoes.txt", "r") as arquivo:
+    for linha in arquivo:
+        id_manifestacao = linha.strip()
+        url_detalhes = f"https://falabr.cgu.gov.br/api/manifestacoes/{id_manifestacao}"
+        
+        resposta = requests.get(url_detalhes, headers=headers)
+        
+        if resposta.status_code == 200:
+            dados_completos.append(resposta.json())
+            contagem += 1
+            print(f"{contagem} manifestações processadas...")
+            
+
+dados_filtrados = []
+
+for item in dados_completos:
+    id_manifestacao = item.get("IdManifestacao")
+    descricao = ((item.get("Teor") or {}).get("DescricaoAtosOuFatos") or {})
+
+    linha_filtrada = {
+        "id_mensagem": id_manifestacao,
+        "descricao": descricao
+    }
+    
+    dados_filtrados.append(linha_filtrada)
+
+df = pd.DataFrame(dados_filtrados)
+
+df_amostra = df.head(1)
+display(Markdown(df_amostra.to_markdown(index=False)))
+```
+
+------------------------------------------------------------------------
+
+# Análise Técnica do Projeto
+
+## Análise Exploratória dos Dados
+
+**Valores faltantes**, **tipos de dados**, **distribuição de categorias**, **moda por categoria** e outras características dos dados foram analisados para entender a estrutura e a qualidade dos dados antes do processo de anonimização.
+
+```{python}
+#| echo: false
+#| label: tbl-resumo-dados
+#| tbl-cap: "Dicionário de Dados e Qualidade das Variáveis"
+
+linhas, colunas = df.shape
+display(Markdown(f"**Dimensões do conjunto de dados:** {linhas} manifestações distribuídas em {colunas} variáveis.\n\n---"))
+
+df_resumo = pd.DataFrame({
+    "Tipo de Dado": df.dtypes.astype(str),
+    "Valores Nulos": df.isnull().sum()
+}).reset_index()
+
+df_resumo.rename(columns={"index": "Variável"}, inplace=True)
+display(Markdown(df_resumo.to_markdown(index=False)))
+```
+
+## Limpeza e Normalização de Texto
+
+### O que é regex e como foi utilizado?
+
+Expressões regulares `regex` são sequências de caracteres que formam um padrão de pesquisa. Elas são usadas para encontrar e manipular `strings` com base em padrões específicos. No processo de anonimização, regex foi utilizado para identificar e remover ou substituir informações sensíveis, como nomes de usuários, atendentes, e-mails, etc. Garantindo que os dados sejam limpos e normalizados antes da anonimização.
+
+### Como a `regex` Funciona?
+
+A regex é composta por uma combinação de caracteres literais e metacaracteres que definem o padrão de pesquisa. Por exemplo, `\d` representa um dígito, `\s` representa um espaço em branco, e \*\*.\*?\*\* representa qualquer sequência de caracteres (não gananciosa). Ao aplicar regex ao texto, ele procura por correspondências com o padrão definido e pode substituir ou remover essas correspondências conforme necessário.
+
+```{python}
+#| echo: false
+#| label: tbl-padrao-usuario
+#| tbl-cap: "Amostra de Mensagens Limpas"
+
+df["descricao"] = df["descricao"].astype(str)
+df["descricao"] = df["descricao"].str.replace(r'([^\w\s])(?:\s*\1)+', r'\1', regex=True)
+df["descricao"] = df["descricao"].str.replace(r'\s+', ' ', regex=True).str.strip()
+
+df_amostra = df.head(1)
+display(Markdown(df_amostra.to_markdown(index=False)))
+```
+
+## Anonimização de Dados com Regex
+
+Nesta etapa, expressões regulares, `regex`, foram utilizadas para identificar e anonimizar informações sensíveis, como: **E-mails**, **URLs**, **Números de Manifestações**, **Telefone**, **CPF**, **CNPJ**, **RG**, **CEP** e **Placas (Padrões novos e Antigos)**. O processo de anonimização substitui essas informações por um espaço em branco.
+
+-   Exemplos de regex para anonimização:
+    -   `r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"` para identificar e anonimizar endereços de e-mail.
+    -   `r"https?://?[^\s]+|www\.[^\s]+"` para identificar e anonimizar URLs.
+    -   `r"\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{2}"` para identificar e anonimizar CPFs.
+
+```{python}
+#| echo: false
+#| label: tbl-resultado-anonimizacao-regex
+#| tbl-cap: "Amostra de Mensagens Anonimizadas Utilizando Expressões Regulares (Regex)"
+
+patterns = {
+    "EMAIL": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+    "URL": r'https?:\/{1,2}[^\s"<>]+|www\.[^\s"<>]+',
+    "MANIFESTACAO": r"\d{5}(?:[.\-/_\s]*)\d{6}(?:[.\-/_\s]*)/?(?:[.\-/_\s]*)\d{4}(?:[.\-/_\s]*)\d{2}",
+    "CNPJ": r"\d{2}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)(?:[.\-/_\s]*)\d{4}(?:[.\-/_\s]*)\d{2}",
+    "CPF": r"\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{2}",
+    "PLACA": r"([A-Za-z]{3}[.\-/_\s]*\d{4})|([A-Za-z]{3}[.\-/_\s]*\d[.\-/_\s]*[A-Za-z][.\-/_\s]*\d{2})",
+    "TELEFONE": r"(?:\+?55[.\-/_\s]*)?(?:\(?\d{2}\)?[.\-/_\s]*)?(?:9[.\-/_\s]*)?\d{4}[.\-/_\s]*\d{4}",
+    "RG": r"\d{1,3}(?:[.\-_\s]*)\d{3}(?:[.\-_\s]*)\d{2,3}(?:[.\-_\s]*)[\dXx]",
+    "CEP": r"\d{5}(?:[.\-/_\s]*)\d{3}",
+    "REDACTED": r"\d{6,}"
+}
+
+compiled_patterns = [re.compile(rf"\S*(?:{p})\S*", flags=re.IGNORECASE) for p in patterns.values()]
+
+def anonimizar_regex(texto):
+    texto = str(texto)
+    for regex in compiled_patterns:
+        texto = regex.sub("[ANONIMIZADO]", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+df["descricao_pre_anonimizada"] = df["descricao"].apply(anonimizar_regex).str.strip()
+df_amostra = df["descricao_pre_anonimizada"].head(1)
+display(Markdown(df_amostra.to_markdown(index=False)))
+```
+
+### Por que a média de caracteres que devem ser anonimizadas por mensagem não foi obtida?
+
+Para calcular a média de caracteres que devem ser anonimizados por mensagem, seria necessário contar o número de anonimizações necessárias em cada mensagem de forma manual, para assim poder ter uma comprovação da eficiência da `regex`. Porém uma grande parte da base de dados foi analizada e a `regex` conseguiu classificar extremamente bem os dados estruturados
+
+## Visualização dos Dados Anonimizados
+
+### Gráfico de Distribuição do Comprimento das Mensagens Anonimizadas
+
+O gráfico de distribuição do comprimento das mensagens anonimizadas foi criado para visualizar a quantidade de mensagens em relação ao número de caracteres. Ele inclui uma linha vertical indicando o corte de 50 caracteres, que é o limite mínimo para considerar uma mensagem como válida para análise. A visualização ajuda a entender a distribuição dos dados após o processo de anonimização e a identificar possíveis mensagens muito curtas que podem não ser úteis para análises futuras.
+
+```{python}
+#| echo: false
+#| warning: false
+#| label: fig-distribuicao-anonimizacoes
+#| fig-cap: "Representação Gráfica da Distribuição do Comprimento das Mensagens Anonimizadas"
+
+df_plot = df[["descricao_pre_anonimizada"]].copy()
+df_plot["num_caracteres"] = df_plot["descricao_pre_anonimizada"].apply(lambda x: len(str(x)))
+df_plot = df_plot[df_plot['num_caracteres'] <= 1000]
+
+sns.set_theme(style="whitegrid")
+plt.figure(figsize=(10, 6))
+
+sns.histplot(
+    data=df_plot, 
+    x='num_caracteres', 
+    bins=50, 
+    color='#4C72B0', 
+    edgecolor='black', 
+    alpha=0.8,
+    kde=False
+)
+
+plt.axvline(x=50, color='red', linestyle='--', linewidth=2, label='Corte: 50 caracteres')
+
+plt.xlabel('Número de Caracteres', fontsize=12)
+plt.ylabel('Quantidade de Mensagens', fontsize=12)
+plt.legend()
+plt.show()
+```
+
+### Resultado do Comprimento das Mensagens após a Anonimização
+
+Após o processo de anonimização, as mensagens foram analisadas para verificar o comprimento das mensagens resultantes. A maioria das mensagens anonimizadas possui um comprimento que varia entre 200 e 400 caracteres, indicando que a anonimização foi eficaz em remover informações sensíveis enquanto preserva a estrutura e o contexto das mensagens. No entanto, algumas mensagens que provavelmente tem como `Descrição Canal Entrada` a categoria `WHATSAPP` e `CHAT`, possuem um comprimento maior do que a maioria das mensagens.
+
+## Preparação da Base de Treino para Modelos de Deep Learning
+
+```{python}
+#| echo: false
+#| label: tbl-preparacao-base-treino
+
+df_partido = df[["id_mensagem", "descricao_pre_anonimizada"]].copy()
+df_partido.rename(columns={
+    "descricao_pre_anonimizada": "descricao"
+}, inplace=True)
+```
+
+### Por que dividir as mensagens em partes menores?
+
+A divisão das mensagens em **partes menores** é necessária para garantir que o modelo de deep learning possa processar as mensagens de forma eficiente, especialmente quando as mensagens são longas e podem exceder os limites de tokens do modelo. Dividir as mensagens em partes menores permite que o modelo capture melhor o contexto e as informações relevantes, sem perder detalhes importantes devido a limitações de comprimento. Além disso, isso ajuda a melhorar a precisão do modelo ao lidar com mensagens complexas e longas, garantindo que cada parte seja tratada de maneira adequada durante o treinamento.
+
+```{python}
+#| echo: false
+#| label: tbl-divisao-mensagens
+
+nlp = spacy.load("pt_core_news_lg", disable=["ner", "lemmatizer", "textcat", "parser", "attribute_ruler"])
+if "sentencizer" not in nlp.pipe_names:
+    nlp.add_pipe("sentencizer")
+
+def preparar_base_treino(df, col_codigo, col_texto, nlp, limite_tokens=256):
+    linhas_expandidas = []
+
+    for row in df.itertuples():
+        texto_original = str(getattr(row, col_texto))
+        id_unico_original = int(getattr(row, col_codigo))
+        if len(texto_original.strip()) < 50:
+
+            continue
+
+        doc = nlp(texto_original)
+        chunk_texto = ""
+        chunk_qtd_tokens = 0
+        sequencia_chunk = 1
+
+        for sent in doc.sents:
+            qtd_tokens_sent = len(sent)
+
+            if qtd_tokens_sent > limite_tokens:
+                for i in range(0, qtd_tokens_sent, limite_tokens):
+                    parte_span = sent[i:i+limite_tokens]
+                    linhas_expandidas.append({
+                        'id_mensagem': id_unico_original,
+                        'ordem_parte': sequencia_chunk,
+                        'descricao': parte_span.text_with_ws.strip()
+                    })
+                    sequencia_chunk += 1
+                    
+                continue
+
+            if chunk_qtd_tokens + qtd_tokens_sent > limite_tokens:
+                if chunk_qtd_tokens > 0:
+                    linhas_expandidas.append({
+                        'id_mensagem': id_unico_original,
+                        'ordem_parte': sequencia_chunk,
+                        'descricao': chunk_texto.strip()
+                    })
+                    sequencia_chunk += 1
+
+                chunk_texto = sent.text_with_ws
+                chunk_qtd_tokens = qtd_tokens_sent
+            else:
+                chunk_texto += sent.text_with_ws
+                chunk_qtd_tokens += qtd_tokens_sent
+
+        if chunk_qtd_tokens > 0:
+            linhas_expandidas.append({
+                'id_mensagem': id_unico_original,
+                'ordem_parte': sequencia_chunk,
+                'descricao': chunk_texto.strip()
+            })
+            
+    return pd.DataFrame(linhas_expandidas)
+
+df_final = preparar_base_treino(df_partido, col_codigo='id_mensagem', col_texto='descricao', nlp=nlp)
+
+df_amostra = df_final["descricao"].loc[
+    df_final["descricao"].str.contains("[ANONIMIZADO]", regex=False, na=False)
+].head(1)
+
+display(Markdown(df_amostra.to_markdown(index=False)))
+```
+
+## Análise da Base de Treino Preparada
+
+### Quais são as características da base de treino preparada?
+
+```{python}
+#| echo: false
+#| label: tbl-resumo-dados-final
+#| tbl-cap: "Dicionário de Dados e Qualidade das Variáveis no Dataset Final"
+
+linhas, colunas = df_final.shape
+display(Markdown(f"**Dimensões do conjunto de dados:** {linhas} manifestações distribuídas em {colunas} colunas.\n"))
+
+df_resumo = pd.DataFrame({
+    "Tipo de Dado": df_final.dtypes.astype(str),
+    "Valores Nulos": df_final.isnull().sum(),
+    "Moda por Categoria": df_final.mode().iloc[0]
+}).reset_index()
+
+df_resumo.rename(columns={"index": "Variável"}, inplace=True)
+display(Markdown(df_resumo.to_markdown(index=False)))
+```
+
+Após a preparação da base de treino, as mensagens foram divididas em partes menores. A base de treino contém as colunas:
+
+-   `id_descricao`: Será adicionada futuramente, servirá de guia para o backend anotar as mensagens que já foram rotuladas manualmente.
+-   `id_mensagem`: Identificador único para cada mensagem original, permitindo rastrear a origem das partes divididas.
+-   `ordem_parte`: Indica a ordem das partes divididas de uma mesma mensagem, garantindo que a sequência original seja mantida durante o treinamento.
+-   `descricao`: Variável Alvo do modelo de deep learning, contendo o texto da mensagem após o processo de anonimização e limpeza.
+
+```{python}
+#| echo: false
+#| label: tbl-base-treino-final
+#| tbl-cap: "Amostra da Base de Treino Preparada para Modelos de Deep Learning (Colunas: id_descricao, id_mensagem, canal, descricao)"
+
+df_final = df_final.drop_duplicates(subset=['descricao'])
+df_final["descricao"] = df_final["descricao"].str.replace(r'\s+', ' ', regex=True)
+
+df_final = df_final.sort_values(by=["id_mensagem", "ordem_parte"])
+df_final["id_descricao"] = range(1, len(df_final) + 1)
+
+df_final.to_csv("../../rme/data/raw/csv/dataset_para_rotular.csv", index=False, sep=";")
+df_final.to_csv("../../data/processed/csv/dataset_para_rotular.csv", index=False, sep=";")
+
+df_amostra = df_final[["id_descricao", "id_mensagem", "descricao"]].head(1)
+display(Markdown(df_amostra.to_markdown(index=False)))
+```
+
+------------------------------------------------------------------------
+
+# Conclusão da Primeira Etapa do Projeto de Anonimização de Dados
+
+Nesta primeira etapa do projeto de anonimização de dados, foi desenvolvido um processo robusto utilizando técnicas de expressões regulares `regex` para identificar e anonimizar informações sensíveis em mensagens de diferentes canais de entrada. A análise exploratória dos dados permitiu entender a estrutura e a qualidade dos dados, enquanto a limpeza e normalização de texto garantiram que os dados estivessem em um formato adequado para o processo de anonimização. A visualização dos dados anonimizados forneceu insights valiosos sobre o impacto do processo de anonimização nos dados, destacando a importância de equilibrar a privacidade com a utilidade dos dados para análises futuras.
+
+------------------------------------------------------------------------
+
+# Etapas futuras do projeto
+
+-   Aplicação de técnicas de Deep Learning para melhorar a identificação de informações sensíveis e a precisão da anonimização. Modelo de Entidades Nomeadas (NER) para identificar entidades específicas em mensagens e aprimorar o processo de anonimização. Tudo isso utilizando SpaCy, uma biblioteca que oferece recursos avançados para o processamento de linguagem natural e a construção de modelos de deep learning.
+
+------------------------------------------------------------------------
+
+# **Referências**

@@ -1,0 +1,232 @@
+---
+title: "Dashboard de Rotulagem NER"
+subtitle: "Monitoramento e Qualidade do Dataset Rotulado"
+format: 
+  dashboard:
+    theme: cosmo
+    scrolling: true
+    code-fold: true
+jupyter: python3
+---
+
+```{=html}
+<div style="
+    background: #fdfdfd; 
+    border: 1px solid #eee; 
+    padding: 10px 20px; 
+    border-radius: 8px; 
+    margin-bottom: 20px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;">
+    
+    <div id="logo-antt">
+        <img src="https://portaldorntrc.com.br/wp-content/uploads/2024/12/Tag-eletronica-da-ANTT-saiba-o-que-fazer-para-obte-la-Photoroom.png" alt="Logo ANTT" style="height: 80px;">
+    </div>
+
+    <div id="controles-render">
+        <span id="render-status" style="margin-right: 15px; font-size: 0.9em; font-weight: bold;"></span>
+        <button id="btn-refresh" class="btn btn-primary">
+            <i class="bi bi-arrow-repeat"></i> Atualizar Relatório
+        </button>
+    </div>
+</div>
+
+<script>
+document.getElementById('btn-refresh').onclick = function() {
+    const btn = this;
+    const status = document.getElementById('render-status');
+    
+    btn.disabled = true;
+    status.innerText = "Processando novos dados...";
+    status.style.color = "#666";
+
+    fetch('http://localhost:5000/render', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'sucesso') {
+            status.innerText = "Atualizado! Recarregando...";
+            status.style.color = "green";
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            status.innerText = "Erro ao renderizar";
+            status.style.color = "red";
+            btn.disabled = false;
+        }
+    })
+    .catch(err => {
+        status.innerText = "API não responde";
+        status.style.color = "red";
+        btn.disabled = false;
+    });
+};
+</script>
+```
+
+## Row {height=80px}
+
+Este painel tem como objetivo monitorar, em tempo real, o processo de rotulagem manual de entidades nomeadas, permitindo avaliar volume, distribuição e qualidade das anotações realizadas.
+
+```{python}
+import pandas as pd
+import plotly.express as px
+import json
+from pathlib import Path
+from IPython.display import display, HTML
+```
+
+```{python}
+BASE_DIR = Path("/app")
+caminho_json = BASE_DIR / "data" / "processed" / "json" / "dataset_rotulado.json"
+
+df = pd.DataFrame()
+
+if not caminho_json.exists():
+     data = []
+     status ="Arquivo JSON ainda não encontrado."
+
+else:
+    with open(caminho_json, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+if not data:
+     status ="Dados ainda não disponíveis ou em escrita..."
+else:
+    rows = []
+
+    for item in data:
+        texto = item.get("text")
+        id_mensagem = item.get("id_mensagem", "")
+        entidades = item.get("entities", [])
+
+        for ent in entidades:
+            start, end, label = ent
+            
+            entidade_texto = texto[start:end]
+
+            rows.append({
+                "id_mensagem": id_mensagem,
+                "texto": texto,
+                "entidade_texto": entidade_texto,
+                "label": label,
+                "start": start,
+                "end": end,
+                "tamanho": end - start,
+                "comprimento_texto": max(len(texto), 1)
+            })
+
+    df = pd.DataFrame(rows)
+
+    if df.empty:
+         status ="Nenhuma entidade encontrada nos dados."
+    else:
+         status ="Dados carregados!"
+         
+display(HTML(f"<div style='text-align: center; font-size: 12px; color: #888;'>{status}</div>"))
+```
+
+```{python}
+total_msgs = len(data) if 'data' in locals() else 0
+total_entidades = len(df) if not df.empty else 0
+tipos = df["label"].nunique() if not df.empty else 0
+media = round(total_entidades / total_msgs, 2) if total_msgs > 0 else 0
+```
+
+## Row
+
+```{python}
+#| content: valuebox
+#| title: "Total de Mensagens Rotuladas"
+
+dict(
+  icon = "chat-square-text",
+  color = "primary",
+  value = total_msgs
+)
+```
+
+```{python}
+#| content: valuebox
+#| title: "Total de Entidades Detectadas"
+
+dict(
+  icon = "tags",
+  color = "info",
+  value = total_entidades
+)
+```
+
+```{python}
+#| content: valuebox
+#| title: "Tipos de Entidades"
+
+dict(
+  icon = "layers",
+  color = "warning",
+  value = tipos
+)
+```
+
+```{python}
+#| content: valuebox
+#| title: "Média de Entidades por Mensagem"
+
+dict(
+  icon = "graph-up",
+  color = "success",
+  value = media
+)
+```
+
+## Row
+
+### Volumetria por Entidade
+
+```{python}
+if not df.empty:
+    counts = df["label"].value_counts().reset_index()
+    counts.columns = ["label", "count"]
+
+    fig1 = px.bar(
+        counts,
+        x="count",
+        y="label",
+        orientation="h",
+        color="label",
+        color_discrete_sequence=px.colors.qualitative.Set3,
+        labels={"count": "Quantidade", "label": "Entidade"}
+    )
+    
+    fig1.update_layout(
+        template="plotly_white",
+        showlegend=False,
+        xaxis_title="Contagem Total",
+        yaxis_title=None
+    )
+```
+
+### Detecção de Outliers de Tamanho
+
+```{python}
+if not df.empty:
+    fig2 = px.box(
+        df,
+        x="label",
+        y="tamanho",
+        color="label",
+        color_discrete_sequence=px.colors.qualitative.Set1,
+        hover_data={
+            "id_mensagem": True,
+            "entidade_texto": True,
+            "label": False
+        }
+    )
+    
+    fig2.update_traces(
+        hovertemplate="<br>".join([
+            "<b>Tamanho:</b> %{y} caracteres",
+            "<b>ID Mensagem:</b> %{customdata[0]}",
+            "<b>Texto Marcado:</b> '%{customdata[1]}'"
+        ])
+    )
+```

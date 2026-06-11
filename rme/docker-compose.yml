@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  motor-rotulacao:
+    image: motor-anonimizacao-base
+    container_name: pipeline-rotulacao
+    
+    ports:
+      - "5000:5000"   # Rotulador
+      - "4200:4200"   # Dashboard Quarto
+
+    volumes:
+      - .:/app
+      - ../ner:/app/ner
+
+    working_dir: /app
+    
+    environment:
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+
+    command: ["bash", "start.sh"]
