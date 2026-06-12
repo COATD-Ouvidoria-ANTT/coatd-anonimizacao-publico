@@ -40,7 +40,6 @@
 *.csv
 *.xlsx
 *.json
-*.txt
 
 # --- Modelos ---
 # Bloqueia modelos pesados (BERTimbau, spaCy, etc) em qualquer pasta 'models'

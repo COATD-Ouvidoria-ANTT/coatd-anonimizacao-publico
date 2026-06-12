@@ -1,6 +1,6 @@
 ---
-title: "Modelo de Anonimização Inteligente para Ouvidorias Públicas - ANTT/OUVIDORIA/COATD"
-subtitle: "Anonimização de Dados Utilizando PLN e Regex"
+title: "Preparação da Base de Treino para Anonimização de Dados"
+subtitle: "Processo de Anonimização utilizando Expressões Regulares (Regex) e Preparação para Modelos de Deep Learning"
 author:
   - name: "Pedro Muniz Cherulli"
     affiliation: "COATD - Coordenação de Análise e Tratamento de Dados"
@@ -10,19 +10,19 @@ date-format: "DD/MM/YYYY"
 
 # Introdução à Anonimização de Dados
 
-## Qual o objetivo do projeto?
+## Objetivo do Projeto
 
 O objetivo deste projeto é desenvolver um processo de anonimização de dados utilizando técnicas de Processamento de Linguagem Natural `PLN` e expressões regulares `regex`. O foco é garantir a privacidade dos dados, removendo ou mascarando informações sensíveis, enquanto se mantém a integridade e a utilidade dos dados para análises futuras.
 
-### Qual o cenário atual da Ouvidoria?
+### Cenário Atual da Ouvidoria
 
-A Ouvidoria da **ANTT** (Agência Nacional de Transportes Terrestres) opera de forma multicanal, tendo como meios de entrada: `Fala.BR`, `WhatsApp`, `Chat`, `Telefone (166)`, `Pessoalmente` e `Carta`. Contudo, a presença de dados pessoais protegidos pela @lgpd2018 impõe barreiras à transmissão dessas informações para as unidades finalísticas. Sem um processo de anonimização ou tratamento adequado, o potencial de utilização desses dados para a melhoria de processos e serviços acaba sendo subutilizado.
+A Ouvidoria da **ANTT** (Agência Nacional de Transportes Terrestres) opera de forma multicanal, tendo diversos meios de entrada de manifestação. Contudo, a presença de dados pessoais protegidos pela [@lgpd2018] impõe barreiras à transmissão dessas informações para as unidades finalísticas. Sem um processo de anonimização ou tratamento adequado, o potencial de utilização desses dados para a melhoria de processos e serviços acaba sendo subutilizado.
 
-### Qual o impacto da anonimização de dados na melhoria dos serviços prestados pela Ouvidoria?
+### Impacto da Anonimização de Dados na Ouvidoria
 
 A anonimização de dados tem um impacto significativo na melhoria dos serviços prestados pela Ouvidoria, pois permite que as informações coletadas sejam utilizadas de forma **segura e ética** para análises e pesquisas. Com dados anonimizados, a Ouvidoria pode **identificar padrões**, **tendências** e **áreas de melhoria** nos serviços oferecidos, **sem comprometer a privacidade dos cidadãos**. Isso possibilita a implementação de ações corretivas e preventivas mais eficazes, além de promover uma maior transparência e confiança entre a Ouvidoria e os usuários dos serviços.
 
-## Quais são os desafios enfrentados?
+## Desafios Enfrentados
 
 1.  **Identificação de Informações Sensíveis**: Identificar corretamente quais informações são sensíveis e precisam ser anonimizadas, como nomes, endereços, números de telefone, e-mails, etc.
 
@@ -32,7 +32,7 @@ A anonimização de dados tem um impacto significativo na melhoria dos serviços
 
 4.  **Automatização do Processo**: Desenvolver um processo automatizado que possa ser aplicado a grandes volumes de dados de forma eficiente e consistente.
 
-5.  **Conformidade com Regulamentações**: Assegurar que o processo de anonimização esteja em conformidade com as regulamentações de privacidade de dados, como a LGPD (Lei Geral de Proteção de Dados) no @lgpd2018
+5.  **Conformidade com Regulamentações**: Assegurar que o processo de anonimização esteja em conformidade com as regulamentações de privacidade de dados, como a LGPD (Lei Geral de Proteção de Dados) no [@lgpd2018]
 
 ```{python}
 #| echo: false
@@ -49,6 +49,12 @@ import spacy
 from datetime import datetime, timedelta
 from dotenv import load_dotenv, find_dotenv
 ```
+
+# Início do Processo de Anonimização de Dados
+
+## Extração dos IDs das Manifestações da API do Falabr
+
+A coleta de dados da API do Fala.BR adotou uma estratégia iterativa. Inicialmente, realizaram-se requisições diárias para extrair e armazenar a lista de identificadores (`IdManifestacao`). Esse fluxo em duas etapas é uma resposta às características arquiteturais da API REST do sistema, que exige consultas individualizadas (por ID) para retornar o objeto JSON completo da manifestação, incluindo o campo `Teor` (descrição textual do fato). A abordagem iterativa, embora mais demorada, é necessária para garantir a obtenção de dados completos e estruturados, permitindo uma análise mais aprofundada e precisa das manifestações registradas no sistema. Essa estratégia também facilita o monitoramento contínuo das manifestações, garantindo que os dados estejam sempre atualizados para análises futuras.
 
 ```{python}
 #| echo: false
@@ -85,6 +91,9 @@ while data_atual <= data_limite:
             for item in dados:
                 if "IdManifestacao" in item:
                     lista_ids.append(item["IdManifestacao"])
+    else:
+        print(f"Erro ao consultar o dia {str_data} - Status Code: {resposta.status_code}")
+        print(f"Detalhe do erro: {resposta.text}\n")
         
     data_atual += timedelta(days=1)
 
@@ -105,9 +114,14 @@ with open(caminho_arquivo, "w") as arquivo:
         arquivo.write(f"{lista}\n")
 ```
 
+### Extração dos Detalhes das Manifestações Utilizando os IDs Obtidos
+
+Os detalhes das manifestações foram extraídos utilizando os IDs obtidos na etapa anterior. Para cada ID, foi feita uma requisição à API do Falabr para obter as informações completas da manifestação, incluindo o campo `Teor`, que contém a descrição dos atos ou fatos relacionados à manifestação. Os dados completos foram armazenados em uma lista e posteriormente filtrados para criar um DataFrame contendo apenas as colunas relevantes para o processo de anonimização, como `id_mensagem` e `descricao`. Essa etapa é crucial para garantir que as informações sensíveis sejam identificadas e tratadas adequadamente durante o processo de anonimização.
+
 ```{python}
 #| include: false
-#| label: extracao-detalhes-manifestacoes
+#| label: tbl-extracao-detalhes-manifestacoes
+#| tbl-cap: "Extração dos Detalhes das Manifestações Utilizando os IDs Obtidos""
 
 dados_completos = []
 contagem = 0
@@ -130,6 +144,8 @@ with open("../../data/raw/txt/ids_manifestacoes.txt", "r") as arquivo:
             contagem += 1
             print(f"{contagem} manifestações processadas...")
             
+        else:
+            print(f"Falha ao buscar a manifestação ID {id_manifestacao} - Status: {resposta.status_code}")
 
 dados_filtrados = []
 
@@ -156,7 +172,7 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ## Análise Exploratória dos Dados
 
-**Valores faltantes**, **tipos de dados**, **distribuição de categorias**, **moda por categoria** e outras características dos dados foram analisados para entender a estrutura e a qualidade dos dados antes do processo de anonimização.
+Os **Valores faltantes** e **tipos de dados** dos dados foram analisados para entender a estrutura e a qualidade dos dados antes do processo de anonimização.
 
 ```{python}
 #| echo: false
@@ -177,13 +193,13 @@ display(Markdown(df_resumo.to_markdown(index=False)))
 
 ## Limpeza e Normalização de Texto
 
-### O que é regex e como foi utilizado?
+### Fundamentos e Aplicação de Regex
 
 Expressões regulares `regex` são sequências de caracteres que formam um padrão de pesquisa. Elas são usadas para encontrar e manipular `strings` com base em padrões específicos. No processo de anonimização, regex foi utilizado para identificar e remover ou substituir informações sensíveis, como nomes de usuários, atendentes, e-mails, etc. Garantindo que os dados sejam limpos e normalizados antes da anonimização.
 
 ### Como a `regex` Funciona?
 
-A regex é composta por uma combinação de caracteres literais e metacaracteres que definem o padrão de pesquisa. Por exemplo, `\d` representa um dígito, `\s` representa um espaço em branco, e \*\*.\*?\*\* representa qualquer sequência de caracteres (não gananciosa). Ao aplicar regex ao texto, ele procura por correspondências com o padrão definido e pode substituir ou remover essas correspondências conforme necessário.
+A regex é composta por uma combinação de caracteres literais e metacaracteres que definem o padrão de pesquisa. Por exemplo, `\d` representa um dígito e `\s` representa um espaço em branco. Ao aplicar regex ao texto, ele procura por correspondências com o padrão definido e pode substituir ou remover essas correspondências conforme necessário.
 
 ```{python}
 #| echo: false
@@ -204,7 +220,7 @@ Nesta etapa, expressões regulares, `regex`, foram utilizadas para identificar e
 
 -   Exemplos de regex para anonimização:
     -   `r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"` para identificar e anonimizar endereços de e-mail.
-    -   `r"https?://?[^\s]+|www\.[^\s]+"` para identificar e anonimizar URLs.
+    -   `r'https?:\/{1,2}[^\s"<>]+|www\.[^\s"<>]+'` para identificar e anonimizar URLs.
     -   `r"\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{2}"` para identificar e anonimizar CPFs.
 
 ```{python}
@@ -238,15 +254,11 @@ df_amostra = df["descricao_pre_anonimizada"].head(1)
 display(Markdown(df_amostra.to_markdown(index=False)))
 ```
 
-### Por que a média de caracteres que devem ser anonimizadas por mensagem não foi obtida?
-
-Para calcular a média de caracteres que devem ser anonimizados por mensagem, seria necessário contar o número de anonimizações necessárias em cada mensagem de forma manual, para assim poder ter uma comprovação da eficiência da `regex`. Porém uma grande parte da base de dados foi analizada e a `regex` conseguiu classificar extremamente bem os dados estruturados
-
 ## Visualização dos Dados Anonimizados
 
 ### Gráfico de Distribuição do Comprimento das Mensagens Anonimizadas
 
-O gráfico de distribuição do comprimento das mensagens anonimizadas foi criado para visualizar a quantidade de mensagens em relação ao número de caracteres. Ele inclui uma linha vertical indicando o corte de 50 caracteres, que é o limite mínimo para considerar uma mensagem como válida para análise. A visualização ajuda a entender a distribuição dos dados após o processo de anonimização e a identificar possíveis mensagens muito curtas que podem não ser úteis para análises futuras.
+O gráfico de distribuição do comprimento das mensagens anonimizadas foi criado para visualizar a quantidade de mensagens em relação ao número de caracteres. Ele inclui uma linha vertical indicando o corte de 50 caracteres, que é o limite mínimo para considerar uma mensagem como válida para produto de treinamento do modelo. A visualização ajuda a entender a distribuição dos dados após o processo de anonimização e a identificar possíveis mensagens muito curtas que podem não ser úteis para análises futuras.
 
 ```{python}
 #| echo: false
@@ -279,10 +291,6 @@ plt.legend()
 plt.show()
 ```
 
-### Resultado do Comprimento das Mensagens após a Anonimização
-
-Após o processo de anonimização, as mensagens foram analisadas para verificar o comprimento das mensagens resultantes. A maioria das mensagens anonimizadas possui um comprimento que varia entre 200 e 400 caracteres, indicando que a anonimização foi eficaz em remover informações sensíveis enquanto preserva a estrutura e o contexto das mensagens. No entanto, algumas mensagens que provavelmente tem como `Descrição Canal Entrada` a categoria `WHATSAPP` e `CHAT`, possuem um comprimento maior do que a maioria das mensagens.
-
 ## Preparação da Base de Treino para Modelos de Deep Learning
 
 ```{python}
@@ -295,7 +303,7 @@ df_partido.rename(columns={
 }, inplace=True)
 ```
 
-### Por que dividir as mensagens em partes menores?
+### Divisão das Mensagens (Chunking)
 
 A divisão das mensagens em **partes menores** é necessária para garantir que o modelo de deep learning possa processar as mensagens de forma eficiente, especialmente quando as mensagens são longas e podem exceder os limites de tokens do modelo. Dividir as mensagens em partes menores permite que o modelo capture melhor o contexto e as informações relevantes, sem perder detalhes importantes devido a limitações de comprimento. Além disso, isso ajuda a melhorar a precisão do modelo ao lidar com mensagens complexas e longas, garantindo que cada parte seja tratada de maneira adequada durante o treinamento.
 
@@ -372,7 +380,7 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ## Análise da Base de Treino Preparada
 
-### Quais são as características da base de treino preparada?
+### Características da Base de Treino Preparada
 
 ```{python}
 #| echo: false
@@ -395,7 +403,7 @@ display(Markdown(df_resumo.to_markdown(index=False)))
 Após a preparação da base de treino, as mensagens foram divididas em partes menores. A base de treino contém as colunas:
 
 -   `id_descricao`: Será adicionada futuramente, servirá de guia para o backend anotar as mensagens que já foram rotuladas manualmente.
--   `id_mensagem`: Identificador único para cada mensagem original, permitindo rastrear a origem das partes divididas.
+-   `id_mensagem`: Identificador único para cada mensagem original, extraído diretamente do **Fala.br** permitindo rastrear a origem das partes divididas.
 -   `ordem_parte`: Indica a ordem das partes divididas de uma mesma mensagem, garantindo que a sequência original seja mantida durante o treinamento.
 -   `descricao`: Variável Alvo do modelo de deep learning, contendo o texto da mensagem após o processo de anonimização e limpeza.
 
@@ -425,7 +433,7 @@ Nesta primeira etapa do projeto de anonimização de dados, foi desenvolvido um 
 
 ------------------------------------------------------------------------
 
-# Etapas futuras do projeto
+# Etapas Futuras do Projeto
 
 -   Aplicação de técnicas de Deep Learning para melhorar a identificação de informações sensíveis e a precisão da anonimização. Modelo de Entidades Nomeadas (NER) para identificar entidades específicas em mensagens e aprimorar o processo de anonimização. Tudo isso utilizando SpaCy, uma biblioteca que oferece recursos avançados para o processamento de linguagem natural e a construção de modelos de deep learning.
 

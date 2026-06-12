@@ -1,6 +1,6 @@
 ---
-title: "Relatório Técnico: Pré-Processamento de Dados para Geoestatística - ANTT/OUVIDORIA/COATD"
-subtitle: "Tratamento de Dados Sensíveis via Transformers e Regex"
+title: "Relatório Técnico: Pipeline de Anonimização de Dados via Deep Learning e Regex"
+subtitle: "Processamento de Dados na Ouvidoria da ANTT"
 author: 
   - name: "Pedro Muniz Cherulli"
     affiliation: "COATD - Coordenação de Análise e Tratamento de Dados"
@@ -8,23 +8,19 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
-# **Introdução**
+# **Introdução e Contextualização**
 
-## **Objetivo do Relatório**
+## **Objetivo do Escopo**
 
-O presente relatório tem como objetivo detalhar o processo de anonimização de dados de manifestações recebidas pela **Ouvidoria** da **Agência Nacional de Transportes Terrestres** (ANTT). Por meio da aplicação de técnicas de **Processamento de Linguagem Natural** (PLN) e **Expressões Regulares** (Regex), buscamos garantir a privacidade dos dados sensíveis contidos nas mensagens, conforme é exigido pela @lgpd2018. Ao mesmo tempo, preservamos a integridade e a utilidade das informações para análises futuras.
+Este documento técnico detalha a arquitetura e a execução do pipeline de anonimização de dados aplicado ao acervo de manifestações da **Ouvidoria da Agência Nacional de Transportes Terrestres (ANTT)**. O propósito fundamental é aplicar metodologias avançadas de **Processamento de Linguagem Natural (PLN)** para a ofuscação de Informações Pessoais Identificáveis (PII), mitigando riscos de exposição em conformidade com as diretrizes da Lei Geral de Proteção de Dados [@lgpd2018]. O desafio reside em suprimir identidades e dados sensíveis sem comprometer a densidade semântica necessária para análises de inteligência governamental.
 
-## **Segurança e Arquitetura**
+## **Paradigma de Segurança Local**
 
-Um pilar fundamental deste projeto é o foco na privacidade dos cidadãos. Para evitar o risco de vazamento de dados inerente ao uso de APIs de terceiros e soluções em nuvem, toda a arquitetura deste pipeline foi desenhada para processamento estritamente local. Essa abordagem assegura total controle sobre o fluxo da informação e conformidade rigorosa com a LGPD, permitindo que a anonimização das manifestações seja feita em um ambiente seguro antes de qualquer eventual integração com outras plataformas analíticas.
+A garantia de privacidade pauta a arquitetura do projeto. A fim de evitar vulnerabilidades associadas à transmissão de dados para provedores de nuvem e APIs externas (Cloud LLMs), todo o fluxo de inferência e anonimização foi projetado para execução estritamente local (*on-premises*). Esta decisão garante o controle absoluto do fluxo da informação sensível.
 
-## **Estrutura do Relatório**
+## **Fluxo de Extração de Dados (API Fala.BR)**
 
-A elaboração deste relatório seguiu uma estrutura lógica e sequencial, visando a clareza e a compreensão do processo de anonimização dos dados. A seguir, descrevemos as principais etapas e seções do relatório:
-
-### **Carregamento e Conversão de Dados**
-
-Nesta seção, realizamos a leitura dos arquivos Excel contendo as manifestações, convertendo-os para o formato CSV para facilitar o processamento subsequente. Caso o arquivo já esteja no formato CSV, o relatório reporta um "erro", informando que nenhum arquivo *.xlsx* foi encontrado.
+O processo de ingestão baseia-se em rotinas de extração da API REST do sistema Fala.BR. Devido à limitação estrutural do *endpoint*, a coleta é segregada: primeiramente, consolidam-se as chaves identificadoras (`IdManifestacao`); subsequentemente, efetua-se a requisição isolada de cada registro para acessar o atributo textual (`Teor`).
 
 ```{python}
 #| echo: false
@@ -81,6 +77,10 @@ while data_atual <= data_limite:
             for item in dados:
                 if "IdManifestacao" in item:
                     lista_ids.append(item["IdManifestacao"])
+                    
+    else:
+        print(f"Erro ao consultar o dia {str_data} - Status Code: {resposta.status_code}")
+        print(f"Detalhe do erro: {resposta.text}\n")
         
     data_atual += timedelta(days=1)
 
@@ -126,6 +126,8 @@ with open("../../data/raw/txt/ids_manifestacoes.txt", "r") as arquivo:
             contagem += 1
             print(f"{contagem} manifestações processadas...")
             
+        else:
+            print(f"Falha ao buscar a manifestação ID {id_manifestacao} - Status: {resposta.status_code}")
 
 dados_filtrados = []
 
@@ -148,11 +150,11 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ------------------------------------------------------------------------
 
-# Análise Técnica do Projeto
+# **Metodologia de Profiling e Limpeza**
 
-## Análise Exploratória dos Dados
+## **Análise Exploratória e Diagnóstico do Corpus**
 
-**Valores faltantes**, **tipos de dados**, **distribuição de categorias**, **moda por categoria** e outras características dos dados foram analisados para entender a estrutura e a qualidade dos dados antes do processo de anonimização.
+Antes da aplicação de regras de ofuscação, o *corpus* textual é submetido a um diagnóstico automatizado. Esta etapa mensura a completude, integridade e tipagem das variáveis. O conhecimento da distribuição estrutural subsidia o refinamento das heurísticas subsequentes de tratamento.
 
 ```{python}
 #| echo: false
@@ -171,15 +173,15 @@ df_resumo.rename(columns={"index": "Variável"}, inplace=True)
 display(Markdown(df_resumo.to_markdown(index=False)))
 ```
 
-## Limpeza e Normalização de Texto
+## **Pré-Processamento Textual e Normalização**
 
-### O que é regex e como foi utilizado?
+### **Abordagem Determinística (Regex)**
 
-Expressões regulares `regex` são sequências de caracteres que formam um padrão de pesquisa. Elas são usadas para encontrar e manipular `strings` com base em padrões específicos. No processo de anonimização, regex foi utilizado para identificar e remover ou substituir informações sensíveis, como nomes de usuários, atendentes, e-mails, etc. Garantindo que os dados sejam limpos e normalizados antes da anonimização.
+O estágio primário do mascaramento emprega **Expressões Regulares (*Regex*)**. Configura-se como um mecanismo de alta precisão para entidades dotadas de formatação lógico-estruturada. As rotinas são instanciadas para localizar e obliterar padrões ruidosos e sensíveis, garantindo a uniformidade da sintaxe e a estabilidade da entrada para o modelo estocástico de Deep Learning.
 
-### Como a `regex` Funciona?
+### **Mapeamento Estruturado**
 
-A regex é composta por uma combinação de caracteres literais e metacaracteres que definem o padrão de pesquisa. Por exemplo, `\d` representa um dígito, `\s` representa um espaço em branco, e \*\*.\*?\*\* representa qualquer sequência de caracteres (não gananciosa). Ao aplicar regex ao texto, ele procura por correspondências com o padrão definido e pode substituir ou remover essas correspondências conforme necessário.
+A sintaxe de regex atua varrendo o texto com complexidade linear, avaliando combinações preestabelecidas de metacaracteres. Padrões matematicamente definíveis (como a formatação de um Cadastro de Pessoas Físicas) são detectados e imediatamente substituídos pela tag `[ANONIMIZADO]`.
 
 ```{python}
 #| echo: false
@@ -196,14 +198,14 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ------------------------------------------------------------------------
 
-## Anonimização de Dados com Regex
+## **Aplicação da Camada Estática (Regex)**
 
-Nesta etapa, expressões regulares, `regex`, foram utilizadas para identificar e anonimizar informações sensíveis, como: **E-mails**, **URLs**, **Números de Manifestações**, **Telefone**, **CPF**, **CNPJ**, **RG**, **CEP** e **Placas (Padrões novos e Antigos)**. O processo de anonimização substitui essas informações por um espaço em branco.
+Na presente implementação, as heurísticas determinísticas abrangeram a ofuscação de identificadores como: **Endereços de E-mail, URLs, Protocolos de Manifestação, Contatos Telefônicos, CPF, CNPJ, RG, CEP** e **Placas Veiculares**. 
 
--   Exemplos de regex para anonimização:
-    -   `r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"` para identificar e anonimizar endereços de e-mail.
-    -   `r"https?://?[^\s]+|www\.[^\s]+"` para identificar e anonimizar URLs.
-    -   `r"\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{2}"` para identificar e anonimizar CPFs.
+- *Excertos das heurísticas aplicadas:*
+    - E-mail: `r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"`
+    - Links: `r"https?://?[^\s]+|www\.[^\s]+"`
+    - Documentos (CPF): `r"\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{2}"`
 
 ```{python}
 #| echo: false
@@ -241,9 +243,9 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ------------------------------------------------------------------------
 
-### **Divisão de Mensagens em Partes**
+### **Segmentação de Sentenças (*Chunking*)**
 
-Devido à limitação de tokens para processamento em modelos de linguagem, as mensagens foram divididas em partes menores, garantindo que cada parte não exceda o limite de **256 tokens**. A segmentação sintática foi realizada com *SpaCy*, enquanto o controle de limite foi feito com tokenização compatível com o modelo *BERT*.
+Arquiteturas baseadas em **Transformers** (como o BERT) possuem limites operacionais rígidos quanto ao comprimento da sequência de entrada (tipicamente 512 subwords/tokens). Para inviabilizar o truncamento e a perda de informações, as manifestações longas são submetidas a um processo de segmentação sintática utilizando a biblioteca `spaCy`. As fraturas são delimitadas no nível da sentença, preservando o contexto gramatical que viabiliza a correta inferência do modelo de rede neural.
 
 ```{python}
 #| echo: false
@@ -339,9 +341,9 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ------------------------------------------------------------------------
 
-### **Anonimização com Modelo de Reconhecimento de Entidades Nomeadas**
+### **Camada de Inferência Estocástica (Reconhecimento de Entidades Nomeadas)**
 
-Para aprimorar a anonimização, foi utilizado um modelo de **Reconhecimento de Entidades Nomeadas** (NER) treinado especificamente para identificar e substituir entidades sensíveis nas mensagens. O modelo foi carregado e aplicado às mensagens divididas, garantindo uma anonimização mais precisa e contextualizada.
+Superada a fase estruturada, o sistema aciona a arquitetura de **Deep Learning** configurada para **Reconhecimento de Entidades Nomeadas (NER)**. O modelo neural customizado é inferido localmente, avaliando dependências contextuais (atenção bidirecional) para detectar PII não estruturadas, como nomes de pessoas físicas, denominações empresariais e descrições orgânicas de localidades, substituindo-as pelas respectivas *tags* estruturadas.
 
 ```{python}
 #| echo: false
@@ -389,9 +391,9 @@ display(Markdown(df_amostra.to_markdown(index=False)))
 
 ------------------------------------------------------------------------
 
-### **Reconstrução das Mensagens Anonimizadas**
+### **Recomposição e Consolidação do Dataset**
 
-Após a aplicação do modelo NER, as mensagens foram reconstruídas a partir das partes divididas, preservando a utilidade analítica do texto. As mensagens reconstruídas foram então exportadas para os **formatos Excel e CSV**, facilitando o acesso e a utilização dos dados anonimizados para análises futuras.
+Finalizada a avaliação neural de cada *chunk*, as sentenças são concatenadas e indexadas por sua chave primária (`id_mensagem`), reconstituindo a coesão do manifesto original. O *dataset* devidamente ofuscado é persistido em matrizes tabulares.
 
 ```{python}
 #| echo: false
@@ -409,9 +411,9 @@ df_reconstruido.to_csv("../../data/processed/csv/data_anonimizado.csv", index=Fa
 display(Markdown(df_reconstruido["texto_final_anonimizado"].head(1).to_markdown(index=False)))
 ```
 
-### **Análise de Resultados**
+### **Análise Volumétrica de Ofuscação**
 
-Análise da distribuição da quantidade de entidades anonimizadas por mensagem revelou insights importantes sobre a natureza dos dados e a eficácia do processo de anonimização. A visualização dessa distribuição permitiu identificar padrões e tendências sobre a performance das **Expressões Regulares** e Modelo **NER** no processo de anonimização de dados.
+O histograma a seguir evidencia a distribuição quantitativa de máscaras aplicadas por registro. Este monitoramento paramétrico permite avaliar a densidade de informações sensíveis no *corpus* diário e afinar os hiperparâmetros de confidência do modelo de rede neural, calibrando o viés do algoritmo contra falsos positivos.
 
 ```{python}
 #| echo: false
@@ -443,17 +445,16 @@ display(Markdown(texto_impacto))
 
 ------------------------------------------------------------------------
 
-# **Conclusão**
+# **Considerações Finais**
 
-O processo de anonimização de dados utilizando técnicas de **PLN** e **Regex** demonstrou ser eficaz na proteção da privacidade das informações sensíveis contidas nas manifestações recebidas pela Ouvidoria da ANTT. A combinação de **Expressões Regulares** para identificação de padrões específicos e o uso de um modelo **NER** treinado permitiu uma anonimização mais precisa e contextualizada, garantindo a integridade e a utilidade dos dados para análises futuras.
+O pipeline arquitetado atesta a viabilidade técnica da anonimização massiva de dados *on-premises*. A abordagem híbrida — amparando-se no determinismo das heurísticas (Regex) paralelamente à compreensão de contexto da Inteligência Artificial (NER via Transformers) — maximizou o espectro de ofuscação. Com os textos resguardados de PII, a ANTT adquire a capacidade legal e tecnológica para extrair *insights* regulatórios com responsabilidade.
 
-## **Trabalhos Futuros e Próximos Passos**
+## **Vetor de Evolução Tecnológica**
 
-Embora os resultados atuais demonstrem a eficácia da abordagem metodológica adotada, a evolução da ferramenta prevê as seguintes etapas:
+O ciclo de vida da solução projeta os seguintes aprimoramentos:
 
-- **Aprimoramento Contínuo do NER:** Realização de novos ciclos de treinamento com bases de dados expandidas para aumentar o *recall* do modelo e mapear exceções e variações linguísticas emergentes.
-
-- **Adequação da Infraestrutura Computacional:** Devido à altíssima demanda de processamento exigida pelos modelos baseados em Transformers (*Deep Learning*), torna-se imperativa a melhoria do parque tecnológico. A aquisição de estações de trabalho equipadas com aceleração gráfica dedicada de alta performance será fundamental para garantir que o pipeline processe a carga de meio milhão de registros anuais localmente em tempo hábil.
+- **Refinamento da Rede Neural:** Ampliação do *corpus* de treinamento anotado visando elevar as métricas de *Recall* e mitigar os falsos negativos residuais.
+- **Hardware Acceleration:** O gargalo natural dos modelos baseados em atenção (*Attention Mechanism*) requer provisionamento de clusters de processamento com GPUs (*Graphics Processing Units*) dedicadas, garantindo viabilidade temporal para processar todo o acervo retroativo.
 
 ------------------------------------------------------------------------
 

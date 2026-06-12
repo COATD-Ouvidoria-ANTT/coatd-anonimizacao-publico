@@ -1,6 +1,6 @@
 ---
-title: "Treinamento de Modelo (NER) - ANTT/OUVIDORIA/COATD"
-subtitle: "Utilização da biblioteca spaCy para treinamento de modelo (NER)"
+title: "Relatório de Treinamento: Modelo de Reconhecimento de Entidades Nomeadas (NER) - ANTT/OUVIDORIA/COATD"
+subtitle: "Arquitetura spaCy para Identificação de PII Não Estruturadas"
 author: 
   - name: "Pedro Muniz Cherulli"
     affiliation: "COATD - Coordenação de Análise e Tratamento de Dados"
@@ -14,9 +14,9 @@ Análise exploratória dos dados é uma etapa crucial para entender a estrutura,
 
 ## Análise Exploratória
 
-### Como foi realizado o processo de anotação dos dados?
+### Metodologia de Anotação
 
-Os dados foram anotados manualmente, onde cada texto foi revisado para identificar e marcar entidades relevantes. As anotações seguem o formato de tuplas (start, end, label), indicando a posição inicial e final da entidade no texto, bem como a categoria da entidade.
+O *corpus* utilizado como verdade fundamental foi construído por meio de anotação humana assistida. As sentenças foram mapeadas e exportadas utilizando o padrão posicional de *Spans*: tuplas contendo `(start_char, end_char, label)`. Esse mapeamento define a fronteira exata em que uma entidade sensível inicia e termina dentro do espaço vetorial do texto.
 
 ```{python}
 #| echo: false
@@ -144,7 +144,7 @@ O treinamento do modelo de NER foi realizado utilizando a biblioteca spaCy, que 
 
 ### Instalação do modelo pré-treinado e configuração do pipeline
 
-Como ponto de partida, foi necessário instalar o modelo pré-treinado "pt_core_news_lg", que contém vetores de palavras e informações linguísticas específicas para o português. Em seguida, foi criada uma configuração personalizada para o treinamento do modelo de NER, otimizando para precisão. Porém foi necessário realizar uma modificação manual na configuração para garantir que os vetores do modelo pré-treinado fossem utilizados durante o treinamento, o que pode melhorar significativamente a capacidade do modelo de reconhecer entidades.
+Como ponto de partida, foi necessário instalar o modelo pré-treinado `pt_core_news_lg`, que contém vetores de palavras e informações linguísticas específicas para o português. Em seguida, foi criada uma configuração personalizada para o treinamento do modelo de NER, otimizando para precisão. Porém foi necessário realizar uma modificação manual na configuração para garantir que os vetores do modelo pré-treinado fossem utilizados durante o treinamento, o que pode melhorar significativamente a capacidade do modelo de reconhecer entidades.
 
 ```{python}
 #| echo: false
@@ -162,7 +162,7 @@ subprocess.run([
 
 ### Verificação e modificação da configuração para utilização dos vetores pré-treinados
 
-Vetores pré-treinados são representações numéricas de palavras que capturam semântica e contexto, o que pode melhorar significativamente o desempenho do modelo de NER. No entanto, a configuração gerada inicialmente não incluía a referência aos vetores pré-treinados. Portanto, foi necessário abrir o arquivo de configuração e modificar a linha correspondente para garantir que os vetores do modelo "pt_core_news_lg" fossem utilizados durante o treinamento.
+Vetores pré-treinados são representações numéricas de palavras que capturam semântica e contexto, o que pode melhorar significativamente o desempenho do modelo de NER. No entanto, a configuração gerada inicialmente não incluía a referência aos vetores pré-treinados. Portanto, foi necessário abrir o arquivo de configuração e modificar a linha correspondente para garantir que os vetores do modelo `pt_core_news_lg` fossem utilizados durante o treinamento.
 
 ```{python}
 #| echo: false
@@ -189,8 +189,7 @@ print("Configuração gerada e otimizada com sucesso.")
 
 ### Execução do treinamento
 
-O modelo foi treinado utilizando o comando de treinamento do spaCy, especificando o caminho para a configuração personalizada, os arquivos de treino e validação, e o diretório de saída onde o modelo treinado será salvo. O processo de treinamento pode levar algum tempo, dependendo do tamanho do dataset e dos recursos computacionais disponíveis.
- spacy download pt_core_news_lg
+O modelo foi treinado utilizando o comando de treinamento do `spaCy`, especificando o caminho para a configuração personalizada, os arquivos de treino e validação, e o diretório de saída onde o modelo treinado será salvo. O processo de treinamento pode levar algum tempo, dependendo do tamanho do dataset e dos recursos computacionais disponíveis.
 
 ```{python}
 #| echo: false
@@ -207,17 +206,6 @@ subprocess.run([
 ], check=True)
 
 print("\nTreinamento concluído. Gerando avaliação...")
-```
-
-```{python}
-#| echo: false
-#| label: avaliacao-modelo
-
-subprocess.run([
-    "python", "-m", "spacy", "evaluate", 
-    str(caminho_modelo_treinado), 
-    str(caminho_dev)
-], check=True)
 ```
 
 ### Interpretação dos resultados e avaliação do modelo
@@ -239,6 +227,17 @@ Após o treinamento, o modelo foi avaliado utilizando métricas como precisão, 
 -   **ENTS_R**: Recall para a tarefa de reconhecimento de entidades nomeadas. Um recall mais alto indica que o modelo está identificando uma maior proporção das entidades presentes no dataset, ou seja, ele está encontrando a maioria das entidades que existem.
 
 -   **Score**: Ele é o mesmo valor do F1-score, mas é apresentado como uma métrica geral de desempenho do modelo. Um Score mais alto indica um melhor desempenho geral na tarefa de reconhecimento de entidades nomeadas.
+
+```{python}
+#| echo: false
+#| label: avaliacao-modelo
+
+subprocess.run([
+    "python", "-m", "spacy", "evaluate", 
+    str(caminho_modelo_treinado), 
+    str(caminho_dev)
+], check=True)
+```
 
 ## Teste do modelo treinado
 
@@ -268,3 +267,19 @@ else:
     for entidade in doc.ents:
         print(f"[{entidade.label_}] -> {entidade.text}")
 ```
+
+# Conclusão da Etapa de Treinamento do Modelo
+
+Nesta etapa, realizamos uma análise exploratória dos dados rotulados, dividimos o dataset em conjuntos de treino e validação, e treinamos um modelo de **NER** utilizando a biblioteca `spaCy`. O processo incluiu a configuração do ambiente, preparação dos dados, execução do treinamento e avaliação do modelo. O modelo encontra-se empacotado e preparado para inferência (*deployment*).
+
+---
+
+# Evolução e Monitoramento Contínuo
+
+- **Validação com Dados Desconhecidos:** Aplicação de uma amostra isolada de manifestações recentes para validar se a distribuição estatística do texto real sofreu desvios (*Data Drift*) em relação aos dados de treino.
+  
+- **Aprendizado Ativo:** Implementação de um ciclo de *feedback loop*, onde as entidades que o modelo errou (com baixa taxa de confiança) são separadas, re-anotadas por analistas e injetadas no banco de treino para um novo ajuste fino (Retreinamento).
+
+---
+
+# **Referências**

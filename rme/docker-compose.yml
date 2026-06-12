@@ -10,8 +10,11 @@ services:
       - "4200:4200"   # Dashboard Quarto
 
     volumes:
-      - .:/app
       - ../ner:/app/ner
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+      - ./outputs:/app/outputs
+      - ./start.sh:/app/start.sh
 
     working_dir: /app
     

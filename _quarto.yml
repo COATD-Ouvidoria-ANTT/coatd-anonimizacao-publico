@@ -19,7 +19,7 @@ format:
       - \usepackage{fancyhdr}
       - \pagestyle{fancy}
       - \fancyhead[L]{Relatório Técnico}
-      - \fancyhead[R]{OUVIDORIA/COATD}
+      - \fancyhead[R]{Processo de Anonimização}
       - \fancyfoot[C]{\thepage}
 
 lang: pt-BR
