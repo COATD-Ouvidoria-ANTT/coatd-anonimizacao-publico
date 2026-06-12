@@ -121,7 +121,7 @@ Os detalhes das manifestações foram extraídos utilizando os IDs obtidos na et
 ```{python}
 #| include: false
 #| label: tbl-extracao-detalhes-manifestacoes
-#| tbl-cap: "Extração dos Detalhes das Manifestações Utilizando os IDs Obtidos""
+#| tbl-cap: "Extração dos Detalhes das Manifestações Utilizando os IDs Obtidos"
 
 dados_completos = []
 contagem = 0
