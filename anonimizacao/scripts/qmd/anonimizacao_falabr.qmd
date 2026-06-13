@@ -53,7 +53,7 @@ headers = {
 }
 
 data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
-data_limite = datetime.datetoday().date()
+data_limite = datetime.today().date()
 url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
 
 lista_ids = []
@@ -433,6 +433,7 @@ plt.show()
 ```{python}
 #| echo: false
 #| output: asis
+#| label: impacto-quantitativo
 
 total_mensagens = len(df_final['id_mensagem'].unique())
 total_anonimizacoes = df_reconstruido["contagem_anonimizacoes"].sum()
