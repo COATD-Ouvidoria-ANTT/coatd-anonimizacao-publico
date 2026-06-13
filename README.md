@@ -20,6 +20,7 @@ coatd-anonimizacao-publico/
 ├── _quarto.yml           # Configurações globais de renderização de documentos
 ├── .dockerignore         # Exclusões de contexto para otimização do build
 ├── .gitignore            # Exclusões de versionamento de arquivos sensíveis/locais
+├── .gitattributes        # Padronização de finais de linha para ambientes Linux/Windows
 ├── Dockerfile            # Receita da imagem base com todo o ecossistema de Data Science
 └── requirements.txt      # Dependências e bibliotecas Python do projeto
 ```
@@ -70,6 +71,9 @@ Como este projeto lida com dados sensíveis da Ouvidoria, o `.gitignore` foi rig
 * **Bloqueio de Dados (LGPD):** Ignora todas as extensões de dados (`.csv`, `.xlsx`, `.json`, `.txt`) dentro das pastas `data/raw/` e `data/processed/`.
 * **Bloqueio de Modelos Pesados:** Ignora a pasta `models/`, evitando que o repositório trave ao tentar subir redes neurais de vários gigabytes.
 * **Preservação de Estrutura:** Utiliza a estratégia de exceção com arquivos vazios `!/.gitkeep`. Isso garante que as pastas sejam criadas na máquina de outros desenvolvedores, mesmo sem enviar os dados que deveriam estar dentro delas.
+
+### Padronização de Finais de Linha (`.gitattributes`)
+Este arquivo previne de forma invisível falhas de compatibilidade entre sistemas operacionais (Windows, Mac, Linux). Ele instrui o Git a forçar o padrão de quebra de linha LF (Line Feed) para códigos e scripts (`.sh`, `.yml`, `.py`, `.qmd`, `.json`).
 
 ### Otimização de Construção (`.dockerignore`)
 
