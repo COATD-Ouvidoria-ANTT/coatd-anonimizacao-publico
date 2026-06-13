@@ -192,7 +192,7 @@ df["descricao"] = df["descricao"].astype(str)
 df["descricao"] = df["descricao"].str.replace(r'([^\w\s])(?:\s*\1)+', r'\1', regex=True)
 df["descricao"] = df["descricao"].str.replace(r'\s+', ' ', regex=True).str.strip()
 
-df_amostra = df.head(1)
+df_amostra = df[["descricao"]].head(1)
 display(Markdown(df_amostra.to_markdown(index=False)))
 ```
 
