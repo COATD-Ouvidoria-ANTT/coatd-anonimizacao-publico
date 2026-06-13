@@ -41,6 +41,7 @@ BASE_DIR = Path.cwd().parents[1]
 DATA_DIR = BASE_DIR / "data" / "raw" / "json"
 MODELS_DIR = BASE_DIR / "models"
 MODELO_V1_DIR = MODELS_DIR / "v1_modelo_inicial"
+caminho_modelo_treinado = MODELO_V1_DIR / "model-best"
 
 if MODELO_V1_DIR.exists():
     shutil.rmtree(MODELO_V1_DIR)
