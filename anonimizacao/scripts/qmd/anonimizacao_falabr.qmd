@@ -53,7 +53,7 @@ headers = {
 }
 
 data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
-data_limite = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
+data_limite = datetime.datetoday().date()
 url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
 
 lista_ids = []
