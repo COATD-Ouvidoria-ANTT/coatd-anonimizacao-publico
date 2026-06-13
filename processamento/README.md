@@ -127,6 +127,25 @@ O Docker Compose irá: - Montar todos os volumes - Executar o comando de renderi
 
 5.  **Verifique os resultados**: Os arquivos PDF processados estarão disponíveis em `outputs/pdf/`.
 
+## Como Personalizar os Filtros de Extração
+
+Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de 01/01/2026 até a data atual. Contudo, as necessidades de análise podem variar (ex: necessidade de extrair mais manifestações devido ao baixo volume de dados no ano de 2026).
+
+Você pode alterar os critérios da busca diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/tratamento_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
+
+Localize o bloco de código Python responsável pela requisição, especificamente onde o dicionário `parametros` é definido. O código padrão se parece com isto:
+
+```python
+parametros = {
+    "dataCadastroInicio": str_data,
+    "dataCadastroFim": str_data
+}
+```
+
+A API do Fala.BR suporta a injeção de múltiplos filtros adicionais. Para consultar a lista completa de campos, chaves e formatos aceitos, acesse a [Documentação Oficial do Manual da API Fala.BR](https://falabr.cgu.gov.br/Help/Api?apiId=GET-api-manifestacoes_NumProtocolo_DataCadastroInicio_DataCadastroFim_DataPrazoRespostaInicio_DataPrazoRespostaFim_DataAtualizacaoInicio_DataAtualizacaoFim_IdSituacaoManifestacao_ApenasDenunciasAptas_ApenasComApuracaoDeEmpresa_ApenasComApuracaoDeServidor_IdTipoFormulario_MaxResultados_PosInicioPagina_OrderBy).
+
+Salve o arquivo após a alteração. Na próxima vez que o comando `docker-compose up` for executado, o pipeline respeitará os novos filtros aplicados na ingestão.
+
 ## Fluxo de Dados
 
 ```         

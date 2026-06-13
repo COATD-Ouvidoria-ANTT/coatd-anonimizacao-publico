@@ -86,36 +86,57 @@ Exportação Final (.csv, .xlsx e relatório em .pdf)
 
 ## Como Executar o Pipeline
 
+### Pré-requisitos e Execução
+
+O texto original foi refinado para corrigir pequenos erros de digitação e garantir clareza no processo de configuração do `.env` e mapeamento do modelo. A numeração também foi corrigida.
+
 **Pré-requisitos:**
 
-- Certifique-se de que o modelo treinado (`model-best`) gerado na etapa anterior está corretamente posicionado na pasta `ner/models/v1_modelo_inicial/`. O modelo não foi copiado para a pasta `anonimização/` devido a questão do tamnho do arquivo, normalmente modelos são arquivos pesados, então para não ocupar um espaço desnecessário o modelo foi mantido na pasta `ner/models/` e apontado como um volume durante a criação do container.
+* **Modelo de IA Disponível:** Certifique-se de que o modelo treinado (`model-best`) gerado na etapa anterior está corretamente posicionado na pasta `ner/models/v1_modelo_inicial/`. O modelo não foi copiado para a pasta `anonimizacao/` devido ao seu tamanho elevado. Para economizar espaço em disco e evitar redundâncias, o modelo foi mantido na pasta original e é consumido de forma inteligente apontando como um volume durante a criação do container.
+* **Variáveis de Ambiente (.env):** Tenha o arquivo `.env` na raiz do projeto contendo o `TOKEN_API_OUVIDORIA` válido. Se você seguiu a ordem cronológica do projeto, este arquivo já foi criado na pasta `processamento/`. Basta copiá-lo para a raiz da pasta `anonimizacao/`.
+* **Criação Manual do .env (Caso pule etapas):** Na raiz da pasta `anonimizacao/`, crie um arquivo vazio e renomeie-o estritamente para `.env` (sem nenhuma extensão oculta, como `.txt`). Abra-o em um editor de texto e insira o seu token de acesso da API após o sinal de igual, conforme o exemplo:
 
-- Tenha o arquivo `.env` na raiz do projeto contendo o `TOKEN_API_OUVIDORIA` válido. Caso tenha treinado o modelo, esse arquivo já foi criado previamente na pasta `processamento/`, apenas copie para a raiz da pasta `anonimizacao/`. Em caso de não ter percorrido a ordem cronológica das pastas, siga o processo do próximo item.
-
-- Crie o arquivo `.env`: Na raiz da pasta `anonimizacao/`, crie um arquivo vazio chamado `.env`, se atente ao tipo de arquivo, ele não pode possuir nenhum tipo, sendo apenas `.env`.
-
-  - Exemplo Correto: `.env`
-  - Exemplo Incorreto: `.env.txt`
-
-- Abra-o em um editor de texto, adicione a varíavel `TOKEN_API_OUVIDORIA` e adicione o seu token de acesso da API após o `=`, assim como no exemplo abaixo.
-
-``` bash
+```bash
 TOKEN_API_OUVIDORIA=insira_seu_token_valido_aqui
+
 ```
 
-1.  **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
+1. **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
 
-``` bash
+```bash
 cd anonimizacao
+
 ```
 
-2.  **Inicie o container Docker**:
+2. **Inicie o container Docker:**
 
-``` bash
+```bash
 docker-compose up
+
 ```
 
-1.  **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (Separador ";"). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
+3. **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (com separador `;`). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
+
+---
+
+## Como Personalizar os Filtros de Extração
+
+Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de 01/01/2026 até a data atual. Contudo, as necessidades de análise podem variar (ex: necessidade de extrair apenas denúncias, filtrar por tipo de formulário ou focar em manifestações com apuração de servidor).
+
+Você pode alterar os critérios da busca diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/anonimizacao_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
+
+Localize o bloco de código Python responsável pela requisição, especificamente onde o dicionário `parametros` é definido. O código padrão se parece com isto:
+
+```python
+parametros = {
+    "dataCadastroInicio": str_data,
+    "dataCadastroFim": str_data
+}
+```
+
+A API do Fala.BR suporta a injeção de múltiplos filtros adicionais. Para consultar a lista completa de campos, chaves e formatos aceitos, acesse a [Documentação Oficial do Manual da API Fala.BR](https://falabr.cgu.gov.br/Help/Api?apiId=GET-api-manifestacoes_NumProtocolo_DataCadastroInicio_DataCadastroFim_DataPrazoRespostaInicio_DataPrazoRespostaFim_DataAtualizacaoInicio_DataAtualizacaoFim_IdSituacaoManifestacao_ApenasDenunciasAptas_ApenasComApuracaoDeEmpresa_ApenasComApuracaoDeServidor_IdTipoFormulario_MaxResultados_PosInicioPagina_OrderBy).
+
+Salve o arquivo após a alteração. Na próxima vez que o comando `docker-compose up` for executado, o pipeline respeitará os novos filtros aplicados na ingestão.
 
 ------------------------------------------------------------------------
 
