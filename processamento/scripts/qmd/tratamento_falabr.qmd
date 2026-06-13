@@ -392,8 +392,7 @@ display(Markdown(f"**Dimensões do conjunto de dados:** {linhas} manifestações
 
 df_resumo = pd.DataFrame({
     "Tipo de Dado": df_final.dtypes.astype(str),
-    "Valores Nulos": df_final.isnull().sum(),
-    "Moda por Categoria": df_final.mode().iloc[0]
+    "Valores Nulos": df_final.isnull().sum()
 }).reset_index()
 
 df_resumo.rename(columns={"index": "Variável"}, inplace=True)
@@ -410,7 +409,7 @@ Após a preparação da base de treino, as mensagens foram divididas em partes m
 ```{python}
 #| echo: false
 #| label: tbl-base-treino-final
-#| tbl-cap: "Amostra da Base de Treino Preparada para Modelos de Deep Learning (Colunas: id_descricao, id_mensagem, canal, descricao)"
+#| tbl-cap: "Amostra da Base de Treino Preparada para Modelos de Deep Learning"
 
 df_final = df_final.drop_duplicates(subset=['descricao'])
 df_final["descricao"] = df_final["descricao"].str.replace(r'\s+', ' ', regex=True)
@@ -421,7 +420,7 @@ df_final["id_descricao"] = range(1, len(df_final) + 1)
 df_final.to_csv("../../rme/data/raw/csv/dataset_para_rotular.csv", index=False, sep=";")
 df_final.to_csv("../../data/processed/csv/dataset_para_rotular.csv", index=False, sep=";")
 
-df_amostra = df_final[["id_descricao", "id_mensagem", "descricao"]].head(1)
+df_amostra = df_final[["descricao"]].head(1)
 display(Markdown(df_amostra.to_markdown(index=False)))
 ```
 
