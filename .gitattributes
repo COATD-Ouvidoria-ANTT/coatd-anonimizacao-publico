@@ -1,0 +1,7 @@
+# Força quebras de linha LF para scripts e arquivos de configuração
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.py    text eol=lf
+*.qmd   text eol=lf
+*.json  text eol=lf
