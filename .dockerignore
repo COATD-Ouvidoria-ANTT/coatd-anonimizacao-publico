@@ -2,11 +2,7 @@
 *
 
 # Abre exceções apenas para o que o Docker precisa para o BUILD
-!requirements.txt
+!requirements_cpu.txt
+!requirements_gpu.txt
 !Dockerfile
-
-# Ignora pastas de metadados que o host cria e podem conflitar
-.git/
-.gitignore
-.Rproj.user/
-*.Rproj
+!Dockerfile.transformers

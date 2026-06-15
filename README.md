@@ -12,17 +12,19 @@ O repositório é modular e dividido em pastas com responsabilidades específica
 
 ```text
 coatd-anonimizacao-publico/
-├── ABNT/                 # Regras globais de formatação e estilos para os relatórios
-├── anonimizacao/         # Pipeline final de produção (Extração -> Ofuscação -> Exportação)
-├── ner/                  # Motor de Inteligência Artificial (Treinamento e Fine-Tuning)
-├── processamento/        # Scripts de preparação prévia de dados para a equipe de rotulação
-├── rme/                  # Aplicação Web para Rotulação Manual de Entidades (Interface Humana)
-├── _quarto.yml           # Configurações globais de renderização de documentos
-├── .dockerignore         # Exclusões de contexto para otimização do build
-├── .gitignore            # Exclusões de versionamento de arquivos sensíveis/locais
-├── .gitattributes        # Padronização de finais de linha para ambientes Linux/Windows
-├── Dockerfile            # Receita da imagem base com todo o ecossistema de Data Science
-└── requirements.txt      # Dependências e bibliotecas Python do projeto
+├── ABNT/                       # Regras globais de formatação e estilos para os relatórios
+├── anonimizacao/               # Pipeline final de produção (Extração -> Ofuscação -> Exportação)
+├── ner/                        # Motor de Inteligência Artificial (Treinamento e Fine-Tuning)
+├── processamento/              # Scripts de preparação prévia de dados para a equipe de rotulação
+├── rme/                        # Aplicação Web para Rotulação Manual de Entidades (Interface Humana)
+├── _quarto.yml                 # Configurações globais de renderização de documentos
+├── .dockerignore               # Exclusões de contexto para otimização do build
+├── .gitignore                  # Exclusões de versionamento de arquivos sensíveis/locais
+├── .gitattributes              # Padronização de finais de linha para ambientes Linux/Windows
+├── Dockerfile                  # Receita da imagem base com todo o ecossistema
+├── Dockerfile.transformers     # Receita da imagem adaptada apenas para treinamento do modelo transformers
+├── requirements_cpu.txt        # Dependências e bibliotecas Python para todo pipeline, com exceção do modelo transformers
+└── requirements_gpu.txt        # Dependências e bibliotecas Python do treinamento do modelo transformers
 ```
 
 ---
@@ -40,7 +42,7 @@ Suas principais definições incluem:
 * **Motor de Renderização:** Utiliza o `xelatex` para converter o Markdown em PDF de alta qualidade.
 * **Estrutura do Documento:** Gera sumários automáticos (`toc: true`), numera as seções e aplica margens padronizadas (superior/inferior de 2.5cm, laterais de 3cm).
 * **Cabeçalhos e Rodapés:** Configura o pacote LaTeX `fancyhdr` para injetar automaticamente "Relatório Técnico" e "Processo de Anonimização" no topo das páginas, além da numeração no rodapé.
-* **Integração Bibliográfica:** Aponta automaticamente para os arquivos `abnt.csl` e `referencias.bib` explicados acima.
+* **Integração Bibliográfica:** Aponta automaticamente para os arquivos de referência (`referencias.bib`) e formatação ABNT.
 
 ### Segurança de Dados (`.gitignore`)
 
@@ -52,33 +54,42 @@ Como este projeto lida com dados sensíveis da Ouvidoria, o `.gitignore` foi rig
 * **Preservação de Estrutura:** Utiliza a estratégia de exceção com arquivos vazios `!/.gitkeep`. Isso garante que as pastas sejam criadas na máquina de outros desenvolvedores, mesmo sem enviar os dados que deveriam estar dentro delas.
 
 ### Padronização de Finais de Linha (`.gitattributes`)
+
 Este arquivo previne de forma invisível falhas de compatibilidade entre sistemas operacionais (Windows, Mac, Linux). Ele instrui o Git a forçar o padrão de quebra de linha LF (Line Feed) para códigos e scripts (`.sh`, `.yml`, `.py`, `.qmd`, `.json`).
+
+### Receitas de Infraestrutura (`Dockerfile` e `Dockerfile.transformers`)
+
+Para suportar as duas vias de processamento detalhadas anteriormente, o projeto utiliza receitas separadas:
+
+* **`Dockerfile`:** Constrói a imagem leve e otimizada (`python:3.13-slim`), contendo tudo o que é necessário para a rotina diária da Ouvidoria e treinamento na arquitetura padrão (CPU).
+* **`Dockerfile.transformers`:** Constrói a imagem pesada (`pytorch/pytorch`), injetando os drivers da NVIDIA (CUDA) e o cache do BERTimbau para viabilizar o processamento em GPU.
 
 ### Otimização de Construção (`.dockerignore`)
 
-Este arquivo define o que é enviado para o "contexto de build" quando você roda o comando de criação da imagem base do Docker. Ele foi configurado com uma abordagem extrema de "negação por padrão":
+Este arquivo define o que é enviado para o "contexto de build" quando você roda o comando de criação da imagem do Docker. Ele foi configurado com uma abordagem extrema de "negação por padrão":
 
 ```text
+# Ignora absolutamente tudo por padrão
 *
-!requirements.txt
+
+# Abre exceções apenas para o que o Docker precisa para o BUILD
+!requirements_cpu.txt
+!requirements_gpu.txt
 !Dockerfile
+!Dockerfile.transformers
 ```
 
 **Por que foi feito assim?**
-A imagem Docker deste projeto atua puramente como um "motor" de processamento. Ela só precisa conhecer a receita de instalação (`Dockerfile`) e a lista de bibliotecas (`requirements.txt`).
-Todo o resto (scripts, modelos e dados) é bloqueado pelo `.dockerignore` para não ser "chumbado" dentro da imagem. A conexão entre o motor Docker e o código do projeto ocorre em tempo de execução através do mapeamento de **volumes** (descrito nos arquivos `docker-compose.yml` de cada pasta), permitindo que você altere o código Python sem precisar reconstruir a imagem gigante de 30 minutos.
+As imagens Docker deste projeto atuam puramente como "motores" de processamento. Elas só precisam conhecer as receitas de instalação e as listas de bibliotecas. Todo o resto (scripts, modelos e dados) é bloqueado pelo `.dockerignore` para não ser adicionado dentro da imagem. A conexão entre o motor Docker e o código do projeto ocorre em tempo de execução através do mapeamento de **volumes** (descrito nos arquivos `docker-compose.yml`), permitindo que a equipe altere os scripts Python sem precisar reconstruir as imagens.
 
-### Controle de Versões de Bibliotecas (`requirements.txt`)
+### Controle de Versões de Bibliotecas (`requirements_cpu.txt` e `requirements_gpu.txt`)
 
-Este arquivo contém o ecossistema Python necessário para sustentar a aplicação. O versionamento explícito (ex: `spacy==3.8.14`, `torch==2.11.0`, `pandas==3.0.2`) garante a total reprodutibilidade do projeto. Se o código for executado em outra máquina, no futuro, as dependências instaladas serão cirurgicamente as mesmas, evitando que atualizações de bibliotecas quebrem a lógica ou as métricas de Deep Learning.
+O versionamento explícito (ex: `spacy==3.8.14`, `pandas==3.0.2`) garante a total reprodutibilidade do projeto. Para evitar imagens inchadas, as dependências foram divididas estrategicamente:
 
-As dependências abrangem cinco grandes áreas do projeto:
+* **`requirements_cpu.txt`:** Contém o ecossistema completo para sustentar a aplicação. Abrange a manipulação de dados (`pandas`), a interface web do rotulador (`Flask`), ferramentas de visualização (`matplotlib`, `seaborn`) e o motor PLN base.
+* **`requirements_gpu.txt`:** Um arquivo estritamente enxuto, desenhado apenas para o contêiner de Inteligência Artificial avançada. Contém exclusivamente as pontes matemáticas e de modelagem (`transformers`, `spacy-transformers`), garantindo máxima performance de hardware sem o peso de bibliotecas de interface ou gráficos.
 
-1. **Manipulação de Dados:** `pandas`, `openpyxl`, `numpy`.
-2. **Integração e Ambiente:** `requests` (para a API), `python-dotenv`.
-3. **Inteligência Artificial (NLP):** `spacy`, `transformers`, `spacy-transformers`, `torch`.
-4. **Interface Web (Rotulador):** `Flask`, `flask-cors`.
-5. **Visualização e Relatórios:** `matplotlib`, `seaborn`, `plotly`, `tabulate`.
+---
 
 ## Ordem Cronológica de Execução (O Fluxo de Trabalho)
 
@@ -91,27 +102,48 @@ Para que o projeto funcione corretamente, as pastas devem ser operadas em uma se
 
 ---
 
-## Configuração Inicial: O Motor Base (Docker)
+## Configuração Inicial: Os Motores de Processamento (Docker)
 
-Toda a arquitetura deste projeto roda dentro de containers isolados para garantir que funcione perfeitamente em qualquer máquina. Para isso, precisamos construir a imagem base **uma única vez**.
+Toda a arquitetura deste projeto roda dentro de contêineres isolados para garantir que funcione perfeitamente em qualquer ambiente. Para isso, precisamos construir as imagens base **uma única vez**.
 
-O arquivo `Dockerfile` na raiz do projeto é extremamente robusto. Ele instala automaticamente o Python 3.13, o motor da linguagem R, o sistema de relatórios Quarto, o processador de PDFs TinyTeX, e faz o download de modelos linguísticos pré-treinados gigabytes de tamanho.
+**O Contexto da Infraestrutura Pública:**
+É uma realidade comum que unidades de Ouvidoria e demais setores públicos operem com computadores padrão de escritório, sem acesso a hardwares gráficos dedicados (GPUs) de alto custo. Tentar executar modelos massivos e modernos de Inteligência Artificial (como a arquitetura baseada em *Transformers*) utilizando apenas o processador comum (CPU) é tecnicamente inviável devido à extrema lentidão.
 
-Para construir este motor, abra o terminal na pasta raiz e execute:
+Pensando nisso, o projeto foi desenhado com **duas vias de execução independentes**. Essa abordagem democratiza o uso da ferramenta para qualquer órgão público, ao mesmo tempo em que oferece uma abordagem extremamente atual para aqueles que possuem infraestrutura avançada.
+
+Abra o terminal na pasta raiz e execute o comando correspondente à sua realidade de hardware:
+
+### 1. Construção do Motor Padrão (Otimizado para CPU comum)
+
+**Recomendado para a maioria dos casos.** Este motor foi feito sob medida para operar perfeitamente nos computadores tradicionais fornecidos pela administração pública. Ele utiliza uma arquitetura de rede neural eficiente (Tok2Vec) que processa os dados de forma ágil e segura utilizando apenas a CPU. 
+> *Se a sua máquina não possui uma placa de vídeo dedicada, o uso do modelo BERT é inviável. Baixe **apenas** a imagem abaixo e siga normalmente com o pipeline do projeto, que se inicia na pasta `processamento/`*
 
 ```bash
-docker build -t motor-anonimizacao-base .
+docker build -t motor-anonimizacao-base -f Dockerfile .
+```
+
+### 2. Construção do Motor Avançado (Requer Placa de Vídeo NVIDIA)
+
+**Para desempenho superior e estado da arte.** Caso sua unidade disponha de servidores ou estações com aceleração gráfica dedicada (ex: NVIDIA RTX), esta é a versão definitiva. Ela habilita o uso de *Transformers* (BERTimbau) — a arquitetura de ponta por trás das IAs modernas. O nível de precisão, compreensão de contexto e desempenho de rotulação é **extremamente maior**.
+> *Se a sua máquina possui uma placa de vídeo dedicada, o uso do modelo BERT é o mais recomendado. Baixe **as duas imagens** e siga com o pipeline do projeto, que se inicia na pasta `processamento/`*
+
+```bash
+docker build -t motor-anonimizacao-base -f Dockerfile .
+docker build -t motor-anonimizacao-transformers -f Dockerfile.transformers .
 ```
 
 > **Aviso Importante sobre o Tempo de Instalação:**
-> Devido ao tamanho dos componentes de Deep Learning, linguagens e processadores de texto integrados, **este download e compilação podem demorar cerca de 30 minutos** dependendo da sua conexão com a internet. Não feche o terminal. Este é um processo de configuração inicial executado apenas uma vez; após criado, os containers das pastas iniciarão em poucos segundos.
+> Devido ao tamanho dos componentes de *Deep Learning*, linguagens e processadores de texto integrados, **a compilação inicial pode demorar de 20 a 40 minutos** dependendo da sua conexão com a internet (especialmente na versão Transformers, que baixa gigabytes de pesos neurais do *Hugging Face*). Não feche o terminal. Este é um processo de configuração executado apenas uma vez; após criadas, as instâncias das etapas seguintes iniciarão em poucos segundos.
+
+---
 
 ## Tecnologias Utilizadas
 
 O ecossistema do projeto foi construído empregando as ferramentas mais sólidas do mercado de Ciência de Dados e Engenharia de Software:
 
-* **Python** Linguagens base para processamento de dados e estatística.
-* **spaCy** Arquitetura central para o Processamento de Linguagem Natural e redes neurais.
+* **Python:** Linguagens base para processamento de dados e estatística.
+* **spaCy:** Arquitetura central para o Processamento de Linguagem Natural e redes neurais.
+* **Transformers:** Arquitetura de aprendizado profundo extremamente atual (utilizando o ecossistema Hugging Face e o modelo *BERTimbau*). Responsável por fornecer uma compreensão avançada do contexto das manifestações, elevando drasticamente a precisão na detecção de entidades sensíveis e ambíguas.
 * **Flask:** Backend ágil para sustentar a ferramenta web de rotulação humana.
 * **Quarto Markdown:** Motor analítico de ponta para a geração interativa e automatizada de relatórios gerenciais e acompanhamento de métricas.
 * **Docker:** Orquestração e padronização do ambiente de execução.

@@ -1,7 +1,8 @@
-FROM python:3.13.12-slim
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     r-base \
@@ -18,14 +19,13 @@ RUN R -e "install.packages(c('knitr', 'rmarkdown', 'reticulate'), repos='http://
 
 WORKDIR /app
 
-COPY requirements_cpu.txt ./requirements.txt
+COPY requirements_gpu.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN python -m spacy download pt_core_news_lg
-
-RUN python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('neuralmind/bert-base-portuguese-cased')"
-
 RUN quarto install tinytex
-
 RUN /root/.TinyTeX/bin/*/tlmgr update --self \
     && /root/.TinyTeX/bin/*/tlmgr install babel-portuges hyphen-portuguese fancyhdr koma-script
+
+RUN python -c "from transformers import AutoModel, AutoTokenizer; \
+    AutoModel.from_pretrained('neuralmind/bert-base-portuguese-cased'); \
+    AutoTokenizer.from_pretrained('neuralmind/bert-base-portuguese-cased')"

@@ -1,5 +1,5 @@
 ---
-title: "Relatório de Treinamento: Modelo de Reconhecimento de Entidades Nomeadas (NER) - ANTT/OUVIDORIA/COATD"
+title: "Relatório de Treinamento: Modelo de Reconhecimento de Entidades Nomeadas (NER) - Arquitetura Transformers (BERTimbau) - ANTT/OUVIDORIA/COATD"
 subtitle: "Arquitetura spaCy para Identificação de PII Não Estruturadas"
 author: 
   - name: "Pedro Muniz Cherulli"
@@ -23,7 +23,6 @@ O *corpus* utilizado como verdade fundamental foi construído por meio de anota�
 #| label: importacao-bibliotecas
 
 import spacy
-import pandas as pd
 from spacy.tokens import DocBin
 import json
 import random
@@ -40,7 +39,7 @@ from pathlib import Path
 BASE_DIR = Path.cwd().parents[1]
 DATA_DIR = BASE_DIR / "data" / "raw" / "json"
 MODELS_DIR = BASE_DIR / "models"
-MODELO_V1_DIR = MODELS_DIR / "v1_modelo_inicial"
+MODELO_V1_DIR = MODELS_DIR / "v1_modelo_transformers"
 caminho_modelo_treinado = MODELO_V1_DIR / "model-best"
 
 if MODELO_V1_DIR.exists():
@@ -142,9 +141,9 @@ O treinamento do modelo de NER foi realizado utilizando a biblioteca spaCy, que 
 
 ## Configuração do Ambiente e Treinamento
 
-### Instalação do modelo pré-treinado e configuração do pipeline
+### Inicialização e configuração do pipeline com Transformers
 
-Como ponto de partida, foi necessário instalar o modelo pré-treinado `pt_core_news_lg`, que contém vetores de palavras e informações linguísticas específicas para o português. Em seguida, foi criada uma configuração personalizada para o treinamento do modelo de NER, otimizando para precisão. Porém foi necessário realizar uma modificação manual na configuração para garantir que os vetores do modelo pré-treinado fossem utilizados durante o treinamento, o que pode melhorar significativamente a capacidade do modelo de reconhecer entidades.
+Como ponto de partida, inicializamos uma configuração otimizada para precisão (`accuracy`) que inclui o componente `transformer` na pipeline do spaCy. Diferente das arquiteturas tradicionais que utilizam vetores de palavras estáticos, os modelos Transformers geram representações contextuais profundas. Essa arquitetura permite que a inteligência artificial entenda o peso de uma palavra com base em toda a frase ao seu redor, o que melhora drasticamente a capacidade do modelo de reconhecer e desambiguar entidades sensíveis complexas.
 
 ```{python}
 #| echo: false
@@ -154,15 +153,17 @@ subprocess.run([
     "python", "-m", "spacy", "init", "config", 
     str(caminho_config), 
     "--lang", "pt", 
-    "--pipeline", "ner", 
+    "--pipeline", "transformer,ner",
     "--optimize", "accuracy", 
     "--force"
 ], check=True)
 ```
 
-### Verificação e modificação da configuração para utilização dos vetores pré-treinados
+### Verificação e injeção da arquitetura BERTimbau
 
-Vetores pré-treinados são representações numéricas de palavras que capturam semântica e contexto, o que pode melhorar significativamente o desempenho do modelo de NER. No entanto, a configuração gerada inicialmente não incluía a referência aos vetores pré-treinados. Portanto, foi necessário abrir o arquivo de configuração e modificar a linha correspondente para garantir que os vetores do modelo `pt_core_news_lg` fossem utilizados durante o treinamento. Também foram ajustados os pesos de avaliação para priorizar o `recall`, garantindo que o modelo seja mais sensível a identificar entidades, mesmo que isso ocasione um aumento nos falsos positivos. Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível pode ter consequências mais graves do que a identificação incorreta de uma entidade.
+Para garantir que o treinamento utilize a melhor representação linguística do português brasileiro, foi necessário modificar o arquivo de configuração padrão gerado pelo spaCy. O modelo base genérico (`roberta-base` ou similar) foi substituído explicitamente pelo `neuralmind/bert-base-portuguese-cased` (conhecido como BERTimbau), um robusto modelo de aprendizado profundo treinado em um vasto corpus da língua portuguesa [@souza2020bertimbau]. 
+
+Essa modificação garante que os tensores de atenção sejam alimentados com um vocabulário altamente especializado antes de refinarmos a camada de NER. Também foram ajustados os pesos de avaliação para priorizar o `recall`, garantindo que o modelo seja mais sensível a identificar entidades, mesmo que isso ocasione um aumento nos falsos positivos. Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível pode ter consequências mais graves do que a identificação incorreta de uma entidade.
 
 ```{python}
 #| echo: false
@@ -172,7 +173,8 @@ with open(caminho_config, "r", encoding="utf-8") as f:
     cfg_text = f.read()
 
 modificacoes = {
-    'vectors = null': 'vectors = "pt_core_news_lg"',
+    'name = "roberta-base"': 'name = "neuralmind/bert-base-portuguese-cased"',
+    'name = "bert-base-multilingual-cased"': 'name = "neuralmind/bert-base-portuguese-cased"',
     'ents_f = 1.0': 'ents_f = 0.0',
     'ents_p = 0.0': 'ents_p = 0.0',
     'ents_r = 0.0': 'ents_r = 1.0'
@@ -216,7 +218,7 @@ Após o treinamento, o modelo foi avaliado utilizando métricas como precisão, 
 
 -   **\#** (Updates): Número de atualizações realizadas no modelo durante o treinamento. Cada atualização ocorre após a apresentação de um lote de dados, e o número total de atualizações pode indicar a quantidade de aprendizado que ocorreu.
 
--   **LOSS TOK2VEC**: Perda associada à tarefa de aprendizado de vetores de palavras. Uma perda menor indica que o modelo está aprendendo representações mais eficazes para as palavras, ou seja, o quanto o modelo ainda está errando ao tentar transformar palavras em conceitos numéricos.
+-   **LOSS TRANSFORMER**: Perda associada à tarefa de aprendizado das representações contextuais (*embeddings*) geradas pela rede neural profunda. Uma perda menor indica que o modelo está mapeando as relações semânticas e o contexto entre as palavras de forma mais eficaz no espaço vetorial dinâmico.
 
 -   **LOSS NER**: Perda associada à tarefa de reconhecimento de entidades nomeadas. Uma perda menor indica que o modelo está melhorando na identificação correta das entidades no texto. Em inteligência artificial, *Loss* é o nome que damos para o erro Se o modelo acha que "cachorro" e "geladeira" são palavras parecidas, o *Loss* será alto (ele errou feio).
 
@@ -269,7 +271,7 @@ else:
 
 # Conclusão da Etapa de Treinamento do Modelo
 
-Nesta etapa, realizamos uma análise exploratória dos dados rotulados, dividimos o dataset em conjuntos de treino e validação, e treinamos um modelo de **NER** utilizando a biblioteca `spaCy`. O processo incluiu a configuração do ambiente, preparação dos dados, execução do treinamento e avaliação do modelo. O modelo encontra-se empacotado e preparado para inferência (*deployment*).
+Nesta etapa, realizamos uma análise exploratória dos dados rotulados, dividimos o dataset em conjuntos de treino e validação, e treinamos um modelo de **NER baseado em Transformers (BERTimbau)** utilizando a biblioteca `spaCy`. O processo incluiu a configuração do ambiente voltado para processamento local intensivo, preparação dos dados, injeção de tensores pré-treinados, execução do treinamento e avaliação do modelo. O modelo encontra-se empacotado e preparado para inferência (*deployment*).
 
 ---
 

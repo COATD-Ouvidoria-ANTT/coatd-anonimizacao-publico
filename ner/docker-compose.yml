@@ -4,7 +4,6 @@ services:
   motor-ner:
     image: motor-anonimizacao-base
     container_name: pipeline-ner
-
     volumes:
       - ../ABNT:/app/ABNT
       - ../_quarto.yml:/app/_quarto.yml
@@ -12,8 +11,33 @@ services:
       - ./data:/app/data
       - ./scripts:/app/scripts
       - ./outputs:/app/outputs
-
     working_dir: /app
-
+    environment:
+      - ARQUITETURA_ALVO=tok2vec
     command: >
       bash -c "quarto render scripts/qmd/ner.qmd && mkdir -p outputs/pdf && mv scripts/qmd/*.pdf outputs/pdf/"
+
+  motor-ner-transformers:
+    image: motor-anonimizacao-transformers
+    container_name: pipeline-ner-transformers
+    profiles:
+      - transformers
+    volumes:
+      - ../ABNT:/app/ABNT
+      - ../_quarto.yml:/app/_quarto.yml
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+      - ./outputs:/app/outputs
+    working_dir: /app
+    environment:
+      - ARQUITETURA_ALVO=transformer
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      bash -c "quarto render scripts/qmd/ner_transformers.qmd && mkdir -p outputs/pdf && mv scripts/qmd/*.pdf outputs/pdf/"

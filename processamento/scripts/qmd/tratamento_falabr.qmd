@@ -46,6 +46,7 @@ import re
 import os
 import requests
 import spacy
+from transformers import AutoTokenizer
 from datetime import datetime, timedelta
 from dotenv import load_dotenv, find_dotenv
 ```
@@ -67,7 +68,7 @@ headers = {
 }
 
 data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
-data_limite = datetime.today().date()
+data_limite = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
 url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
 
 lista_ids = []
@@ -305,7 +306,11 @@ df_partido.rename(columns={
 
 ### Divisão das Mensagens (Chunking)
 
-A divisão das mensagens em **partes menores** é necessária para garantir que o modelo de deep learning possa processar as mensagens de forma eficiente, especialmente quando as mensagens são longas e podem exceder os limites de tokens do modelo. Dividir as mensagens em partes menores permite que o modelo capture melhor o contexto e as informações relevantes, sem perder detalhes importantes devido a limitações de comprimento. Além disso, isso ajuda a melhorar a precisão do modelo ao lidar com mensagens complexas e longas, garantindo que cada parte seja tratada de maneira adequada durante o treinamento.
+A segmentação das manifestações em **partes menores (*chunking*)** é uma etapa indispensável para adequar os dados à arquitetura dos modelos de *Deep Learning*. Redes neurais baseadas em Transformers possuem um limite estrito de janela de contexto (número máximo de *tokens* processados simultaneamente). Caso um texto exceda esse limite estrutural, seu final é silenciosamente truncado pelo modelo, o que poderia resultar na perda de entidades sensíveis localizadas no fim da mensagem.
+
+Para garantir que o fatiamento seja matematicamente preciso e preserve a integridade da informação, adotou-se uma abordagem híbrida. O texto é primeiramente avaliado de forma lógica para não quebrar sentenças no meio. Em seguida, a contagem de limite (ex: 256 tokens) é validada utilizando estritamente o tokenizador nativo (baseado em *subwords/WordPiece*) do próprio modelo de linguagem no qual a rede será ajustada [@souza2020bertimbau]. 
+
+Essa sincronia entre a preparação na CPU e o processamento na GPU garante que a inteligência artificial receba blocos de texto perfeitamente dimensionados, permitindo a captura máxima de contexto sem riscos de estouro de memória ou perda de dados críticos.
 
 ```{python}
 #| echo: false
@@ -315,58 +320,78 @@ nlp = spacy.load("pt_core_news_lg", disable=["ner", "lemmatizer", "textcat", "pa
 if "sentencizer" not in nlp.pipe_names:
     nlp.add_pipe("sentencizer")
 
+tokenizer = AutoTokenizer.from_pretrained("neuralmind/bert-base-portuguese-cased")
+
+def contar_tokens_bert(texto):
+    return len(tokenizer.encode(texto, add_special_tokens=False, truncation=False))
+
 def preparar_base_treino(df, col_codigo, col_texto, nlp, limite_tokens=256):
     linhas_expandidas = []
 
     for row in df.itertuples():
         texto_original = str(getattr(row, col_texto))
         id_unico_original = int(getattr(row, col_codigo))
-        if len(texto_original.strip()) < 50:
 
+        if len(texto_original.strip()) < 50:
             continue
 
         doc = nlp(texto_original)
-        chunk_texto = ""
-        chunk_qtd_tokens = 0
+        
+        chunk_atual = []
+        tokens_acumulados = 0
         sequencia_chunk = 1
 
         for sent in doc.sents:
-            qtd_tokens_sent = len(sent)
+            qtd_tokens_sent = contar_tokens_bert(sent.text)
 
             if qtd_tokens_sent > limite_tokens:
-                for i in range(0, qtd_tokens_sent, limite_tokens):
-                    parte_span = sent[i:i+limite_tokens]
+                if chunk_atual:
                     linhas_expandidas.append({
                         'id_mensagem': id_unico_original,
                         'ordem_parte': sequencia_chunk,
-                        'descricao': parte_span.text_with_ws.strip()
+                        'descricao': " ".join([s.text for s in chunk_atual]).strip()
                     })
                     sequencia_chunk += 1
+                    chunk_atual = []
+                    tokens_acumulados = 0
+
+                tokens_bert = tokenizer.encode(sent.text, add_special_tokens=False)
+                
+                for i in range(0, len(tokens_bert), limite_tokens):
+                    chunk_ids = tokens_bert[i : i + limite_tokens]
+                    chunk_text = tokenizer.decode(chunk_ids)
                     
+                    linhas_expandidas.append({
+                        'id_mensagem': id_unico_original,
+                        'ordem_parte': sequencia_chunk,
+                        'descricao': chunk_text.strip()
+                    })
+                    sequencia_chunk += 1
                 continue
 
-            if chunk_qtd_tokens + qtd_tokens_sent > limite_tokens:
-                if chunk_qtd_tokens > 0:
+            if tokens_acumulados + qtd_tokens_sent > limite_tokens:
+                if chunk_atual:
                     linhas_expandidas.append({
                         'id_mensagem': id_unico_original,
                         'ordem_parte': sequencia_chunk,
-                        'descricao': chunk_texto.strip()
+                        'descricao': " ".join([s.text for s in chunk_atual]).strip()
                     })
                     sequencia_chunk += 1
 
-                chunk_texto = sent.text_with_ws
-                chunk_qtd_tokens = qtd_tokens_sent
-            else:
-                chunk_texto += sent.text_with_ws
-                chunk_qtd_tokens += qtd_tokens_sent
+                chunk_atual = [sent]
+                tokens_acumulados = qtd_tokens_sent
 
-        if chunk_qtd_tokens > 0:
+            else:
+                chunk_atual.append(sent)
+                tokens_acumulados += qtd_tokens_sent
+
+        if chunk_atual:
             linhas_expandidas.append({
                 'id_mensagem': id_unico_original,
                 'ordem_parte': sequencia_chunk,
-                'descricao': chunk_texto.strip()
+                'descricao': " ".join([s.text for s in chunk_atual]).strip()
             })
-            
+
     return pd.DataFrame(linhas_expandidas)
 
 df_final = preparar_base_treino(df_partido, col_codigo='id_mensagem', col_texto='descricao', nlp=nlp)
