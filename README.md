@@ -31,27 +31,6 @@ coatd-anonimizacao-publico/
 
 A raiz do projeto contém arquivos essenciais que padronizam a formatação dos relatórios, garantem a segurança do versionamento e definem o ambiente de execução.
 
-### Diretório ABNT e Citações Bibliográficas
-
-A pasta `ABNT/` contém os arquivos responsáveis pela formatação acadêmica e técnica dos relatórios gerados pelo Quarto. Ela possui dois arquivos:
-
-* `abnt.csl`: Arquivo de linguagem de estilo de citação que define as regras visuais da Associação Brasileira de Normas Técnicas (ABNT).
-* `referencias.bib`: Um banco de dados em formato texto que armazena todas as referências bibliográficas do projeto.
-
-**Como adicionar novas citações:**
-Para incluir uma nova referência (como leis, artigos ou documentações técnicas), abra o arquivo `referencias.bib` e adicione a entrada no formato BibTeX. Por exemplo:
-
-```bibtex
-@legislation{lgpd2018,
-  title   = {Lei nº 13.709, de 14 de agosto de 2018. Lei Geral de Proteção de Dados Pessoais (LGPD)},
-  author  = {{Brasil}},
-  year    = {2018},
-  url     = {https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm}
-}
-```
-
-Nos scripts `.qmd`, basta utilizar a sintaxe `[@lgpd2018]` e o Quarto formatará automaticamente a citação no texto e gerará a lista de referências ao final do PDF.
-
 ### Configuração Global do Quarto (`_quarto.yml`)
 
 O arquivo `_quarto.yml` atua como o modelo mestre para a renderização de todos os relatórios do projeto. Ele centraliza as regras visuais para que não seja necessário repeti-las em cada script.
