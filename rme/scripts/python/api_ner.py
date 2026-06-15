@@ -29,7 +29,7 @@ OUTPUT_PATH = PROCESSED_DIR / "json" / "dataset_rotulado.json"
 OUTPUT_PATH_NER = BASE_DIR / "ner" / "data" / "raw" / "json" / "dataset_rotulado.json"
 PULADOS_PATH = PROCESSED_DIR / "json" / "dataset_pulados.json"
 
-MODELS_BASE_DIR = BASE_DIR / "models"
+MODELS_BASE_DIR = BASE_DIR / "ner" / "models"
 model_folders = list(MODELS_BASE_DIR.glob("*/model-best"))
 
 if model_folders:
