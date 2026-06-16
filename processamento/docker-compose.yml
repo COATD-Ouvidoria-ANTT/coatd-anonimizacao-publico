@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   motor-processamento:
     image: motor-anonimizacao-base
