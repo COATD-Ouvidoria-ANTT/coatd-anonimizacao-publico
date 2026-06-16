@@ -111,7 +111,11 @@ Toda a arquitetura deste projeto roda dentro de contêineres isolados para garan
 
 Pensando nisso, o projeto foi desenhado com **duas vias de execução independentes**. Essa abordagem democratiza o uso da ferramenta para qualquer órgão público, ao mesmo tempo em que oferece uma abordagem extremamente atual para aqueles que possuem infraestrutura avançada.
 
-Abra o terminal na pasta raiz e execute o comando correspondente à sua realidade de hardware:
+Abra o terminal na pasta raiz
+
+```bash
+cd coatd-anonimizacao-publico
+```
 
 ### 1. Construção do Motor Padrão (Otimizado para CPU comum)
 
@@ -151,3 +155,19 @@ O ecossistema do projeto foi construído empregando as ferramentas mais sólidas
 ## Contato
 
 Para aprofundar-se no funcionamento técnico de cada etapa, navegue até as pastas individuais e consulte seus respectivos arquivos `README.md`. Para manutenção evolutiva ou suporte à infraestrutura, acione a Coordenação de Análise e Tratamento de Dados (COATD).
+
+---
+
+## Como Citar
+
+Se você utilizar este pipeline de anonimização ou parte de sua arquitetura em suas pesquisas, projetos institucionais ou sistemas, por favor, cite-nos como referência intelectual utilizando o formato BibTeX abaixo:
+
+```bibtex
+@software{antt2026anonimizacao,
+  author       = {Cherulli, Pedro and {Coordenação de Análise e Tratamento de Dados (COATD/OUVID/ANTT)}},
+  title        = {Projeto de Anonimização de Manifestações (Ouvidoria ANTT)},
+  year         = {2026},
+  organization = {Agência Nacional de Transportes Terrestres (ANTT)},
+  note         = {Pipeline on-premises de Processamento de Linguagem Natural e Deep Learning para anonimização de dados sensíveis em conformidade com a LGPD.},
+  url          = {https://github.com/COATD-Ouvidoria-ANTT/coatd-anonimizacao-publico}
+}
