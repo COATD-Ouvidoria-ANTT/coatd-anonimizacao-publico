@@ -21,8 +21,9 @@ ner/
 │   └── pdf/                                # Arquivos do Relatório de Treinamento
 │       └── ner.pdf                         # Relatório gerado com métricas e análises
 └── scripts/                                # Scripts de processamento e treinamento
-    └── qmd/                                # Documentos Quarto Markdown
-        └── ner.qmd                         # Script central que orquestra todo o treinamento
+        └── qmd/                            # Documentos Quarto Markdown
+            ├── ner.qmd                     # Script central que orquestra todo o treinamento
+            └── ner_transformers.qmd        # Script de treinamento avançado com arquitetura Transformers (GPU)
 ```
 
 ------------------------------------------------------------------------
@@ -43,7 +44,7 @@ Define o ambiente isolado e containerizado onde o treinamento da Inteligência A
 
 Atua como a ponte entre a interface web e o motor de IA. Ele deve conter o arquivo `dataset_rotulado.json` contendo as marcações feitas pela equipe, onde cada entidade possui sua posição exata de início e fim no texto.
 
-### 3. Script Central (`ner.qmd`)
+### 3. Script NER (`ner.qmd`)
 
 Um documento interativo Quarto que executa o treinamento em etapas lógicas:
 
@@ -52,6 +53,18 @@ Um documento interativo Quarto que executa o treinamento em etapas lógicas:
 3.  **Conversão (`DocBin`):** Transforma o arquivo JSON legível para humanos no formato `.spacy` binário, que é altamente eficiente para a máquina.
 4.  **Treinamento:** Ajusta os pesos do modelo pré-treinado (`pt_core_news_lg`) para que ele aprenda o vocabulário e os contextos específicos da nossa base de dados.
 5.  **Teste e Avaliação:** Executa um teste real com um texto fictício para provar que a IA aprendeu a localizar os dados.
+
+### 3.1. Script de Treinamento Avançado (`ner_transformers.qmd`)
+
+Um documento interativo Quarto semelhante ao `ner.qmd`, mas que executa o treinamento utilizando a arquitetura de aprendizado profundo **Transformers (BERTimbau)**.
+
+**Por que um script semelhante foi feito?**
+Para poder abraçar todos os públicos de ouvidorias públicas: tanto o com dinheiro investido em hardwares de vídeo (que podem aproveitar a aceleração de GPU com os Transformers), quanto os sem (que podem utilizar o `ner.qmd` padrão focado em CPU).
+
+Embora siga as mesmas etapas lógicas (Análise, Divisão, Conversão, Treinamento e Teste), ele se diferencia por:
+- Utilizar representações contextuais profundas em vez de vetores de palavras estáticos.
+- Modificar as configurações padrão para usar o `neuralmind/bert-base-portuguese-cased` (BERTimbau).
+- Priorizar o *recall* (sensibilidade) para não deixar passar dados sensíveis em contextos complexos.
 
 ### 4. Diretório `models/v1_modelo_inicial/` (Saída do Modelo)
 
@@ -63,7 +76,7 @@ Armazena o documento `ner.pdf`, que serve como o "diploma" da IA, atestando com 
 
 ------------------------------------------------------------------------
 
-## Como Iniciar o Treinamento
+## Como Iniciar o Treinamento do Modelo NER
 
 **Pré-requisitos:** Ter o arquivo `dataset_rotulado.json` salvo na pasta `ner/data/raw/json/`. O Docker e o Docker Compose devem estar instalados e em execução na máquina.
 
@@ -76,17 +89,25 @@ cd ner
 2.  **Inicie o container Docker:** Rode o comando abaixo para construir o ambiente e disparar o treinamento de forma 100% automatizada:
 
 ``` bash
-docker-compose up
+docker-compose --profile cpu up
 ```
 
 O Docker Compose irá: \* Carregar a imagem e montar os volumes necessários. \* Acionar o motor do Quarto Markdown no plano de fundo. \* Dividir os dados, convertê-los para o formato binário do spaCy e rodar os ciclos de aprendizado. \* Compilar e mover o relatório final `ner.pdf` para a pasta de saídas.
+
+3. **Finalizando o container Docker**: Ao finalizar a pipeline execute o comando abaixo para remover o container:
+
+``` bash
+docker-compose --profile cpu down
+```
 
 ## Entendendo as Métricas de Avaliação
 
 Durante e após o treinamento, o relatório exibirá siglas técnicas para definir o quão inteligente o modelo ficou. Aqui está o significado prático de cada uma:
 
-- **Epochs (E):** Quantas vezes o modelo "leu" o conjunto de dados inteiro para melhorar seu desempenho. Ler poucas vezes gera ignorância; ler vezes demais gera decoreba (*overfitting*).
-- **LOSS:** É o tamanho do erro. Quanto menor esse número, melhor o modelo está compreendendo o texto.
+- **LOSS TOK2VEC:** É o tamanho do erro. Quanto menor esse número, melhor o modelo está compreendendo o texto.
+- **LOSS NER:** Mede o erro específico na tarefa de achar as entidades (nomes, CPFs, empresas, etc).
+- **Epochs (E):** Quantas vezes o modelo "leu" o conjunto de dados inteiro para melhorar seu desempenho. Ler poucas vezes gera ignorância; ler vezes demais gera memorização (*overfitting*).
+- **\#** (Updates): Número de atualizações realizadas no modelo durante o treinamento. Cada atualização ocorre após a apresentação de um lote de dados, e o número total de atualizações pode indicar a quantidade de aprendizado que ocorreu.
 - **Precisão (ENTS_P):** Quando o modelo diz "isso é um CPF", ele está certo em quantos % das vezes? Mede a confiabilidade da IA.
 - **Recall (ENTS_R):** De todos os CPFs que realmente existiam no texto, quantos a IA conseguiu achar? Mede a capacidade de "não deixar passar nada".
 - **Score (F1-Score):** É a média de equilíbrio entre a Precisão e o Recall. É a nota final de desempenho do modelo.
@@ -109,12 +130,6 @@ Ajuste fino utilizando vetores de palavras (pt_core_news_lg)
 model-best (Modelo Inteligente Salvo) + ner.pdf (Relatório Gerencial)
 ```
 
-Aqui está a seção **Dependências Externas** formatada com base nas bibliotecas e ferramentas que foram importadas e utilizadas dentro do seu arquivo `ner.qmd`.
-
-Você pode inseri-la logo acima de "Tratamento de Erros Comuns":
-
----
-
 ## Dependências Externas
 
 As seguintes bibliotecas e ferramentas são o alicerce para a execução do treinamento nesta pasta (já configuradas na imagem Docker do projeto):
@@ -126,6 +141,74 @@ As seguintes bibliotecas e ferramentas são o alicerce para a execução do trei
 * **Bibliotecas Nativas do Python (`json`, `pathlib`, `subprocess`, `random`, `shutil`):** Utilizadas para a leitura da base rotulada, manipulação segura de diretórios, embaralhamento dos dados (para a divisão justa entre Treino e Validação) e execução de processos em segundo plano no container.
 
 ------------------------------------------------------------------------
+
+## Como Iniciar o Treinamento do Modelo Avançado (Transformers)
+
+**Pré-requisitos:** Ter o arquivo `dataset_rotulado.json` salvo na pasta `ner/data/raw/json/`. O Docker e o Docker Compose devem estar instalados. Para este modelo, é fortemente recomendado o uso de hardware com **GPU** (placa de vídeo) para um tempo de treinamento viável.
+
+1.  **Navegue até o diretório do NER:** Abra o seu terminal e acesse a pasta correspondente:
+
+``` bash
+cd ner
+```
+
+2.  **Inicie o container Docker:** Rode o comando correspondente ao ambiente de transformers para disparar o treinamento:
+
+``` bash
+docker-compose --profile transformers up
+```
+
+3. **Finalizando o container Docker**: Ao finalizar a pipeline execute o comando abaixo para remover o container:
+
+``` bash
+docker-compose --profile transformers down
+```
+
+O fluxo automatizado irá: 
+* Carregar a imagem baseada em GPU e montar os volumes. 
+* Acionar o motor do Quarto Markdown (`ner_transformers.qmd`) no plano de fundo. 
+* Injetar a arquitetura profunda BERTimbau (`neuralmind/bert-base-portuguese-cased`).
+* Rodar os ciclos de aprendizado priorizando a sensibilidade (Recall) do modelo.
+* Compilar e mover o relatório final `ner_transformers.pdf` para a pasta de saídas.
+
+## Entendendo as Métricas de Avaliação (Transformers)
+
+A lógica de avaliação é semelhante, porém o modelo baseado em redes neurais profundas exibe uma métrica de erro (LOSS) dividida em duas partes:
+
+- **LOSS TRANSFORMER:** Mede o erro da IA ao tentar entender o contexto geral e a semântica da língua portuguesa. Quanto menor esse número, melhor o modelo mapeou as relações entre as palavras na frase.
+- **LOSS NER:** Mede o erro específico na tarefa de achar as entidades (nomes, CPFs, empresas, etc).
+- **Epochs (E):** Quantas vezes o modelo "leu" o conjunto de dados inteiro para melhorar seu desempenho. Ler poucas vezes gera ignorância; ler vezes demais gera memorização (*overfitting*).
+- **\#** (Updates): Número de atualizações realizadas no modelo durante o treinamento. Cada atualização ocorre após a apresentação de um lote de dados, e o número total de atualizações pode indicar a quantidade de aprendizado que ocorreu.
+- **Precisão (ENTS_P):** Quando o modelo diz "isso é um CPF", ele está certo em quantos % das vezes? Mede a confiabilidade da IA.
+- **Recall (ENTS_R):** De todos os CPFs que realmente existiam no texto, quantos a IA conseguiu achar? Mede a capacidade de "não deixar passar nada".
+- **Score (F1-Score):** É a média de equilíbrio entre a Precisão e o Recall. É a nota final de desempenho do modelo.
+
+## Fluxo de Dados do Treinamento (Transformers)
+
+``` text
+dataset_rotulado.json (Conhecimento Humano)
+        ↓
+ner_transformers.qmd (Script de Orquestração Avançada)
+        ↓
+Divisão 80/20 (Treino e Validação)
+        ↓
+Conversão para formato binário (.spacy)
+        ↓
+Ajuste fino utilizando tensores contextuais profundos (BERTimbau)
+        ↓
+v1_modelo_transformers/model-best (Modelo Inteligente Salvo) + ner_transformers.pdf (Relatório)
+```
+
+## Dependências Externas (Modelo Transformers)
+
+As seguintes bibliotecas e ferramentas formam o alicerce para a execução do treinamento avançado nesta arquitetura (já configuradas no `Dockerfile.transformers`):
+
+* **spaCy & spacy-transformers:** Biblioteca central de NLP, agora estendida com seu módulo de transformers. É responsável por orquestrar a rede neural profunda, criar o formato binário de treino (`DocBin`) e calcular as métricas de perda (Loss).
+* **BERTimbau (`neuralmind/bert-base-portuguese-cased`):** Modelo fundacional (Hugging Face) pré-treinado massivamente na língua portuguesa brasileira. Ele substitui o `pt_core_news_lg`, atuando como a base de inteligência contextual profunda para o ajuste fino do NER.
+* **Quarto:** Motor de renderização analítico que executa os blocos de código Python sequencialmente e compila os resultados e logs de treinamento no relatório PDF.
+* **Bibliotecas Nativas do Python (`json`, `pathlib`, `subprocess`, `random`, `shutil`, `collections`):** Essenciais para a manipulação dos diretórios de cache do modelo pesado, integração do script com os comandos de terminal do spaCy, embaralhamento e divisão justa dos dados para validação.
+
+---
 
 ## Tratamento de Erros Comuns
 

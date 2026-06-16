@@ -112,7 +112,6 @@ cd anonimizacao
 
 ```bash
 docker-compose up
-
 ```
 
 3. **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (com separador `;`). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
@@ -121,7 +120,7 @@ docker-compose up
 
 ## Como Personalizar os Filtros de Extração
 
-Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de 01/01/2026 até a data atual. Contudo, as necessidades de análise podem variar (ex: necessidade de extrair apenas denúncias, filtrar por tipo de formulário ou focar em manifestações com apuração de servidor).
+Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de **01/01/2026 até a data atual**. Contudo, as necessidades de análise podem variar (ex: necessidade de extrair apenas denúncias, filtrar por tipo de formulário ou focar em manifestações com apuração de servidor).
 
 Você pode alterar os critérios da busca diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/anonimizacao_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
 
@@ -137,6 +136,38 @@ parametros = {
 A API do Fala.BR suporta a injeção de múltiplos filtros adicionais. Para consultar a lista completa de campos, chaves e formatos aceitos, acesse a [Documentação Oficial do Manual da API Fala.BR](https://falabr.cgu.gov.br/Help/Api?apiId=GET-api-manifestacoes_NumProtocolo_DataCadastroInicio_DataCadastroFim_DataPrazoRespostaInicio_DataPrazoRespostaFim_DataAtualizacaoInicio_DataAtualizacaoFim_IdSituacaoManifestacao_ApenasDenunciasAptas_ApenasComApuracaoDeEmpresa_ApenasComApuracaoDeServidor_IdTipoFormulario_MaxResultados_PosInicioPagina_OrderBy).
 
 Salve o arquivo após a alteração. Na próxima vez que o comando `docker-compose up` for executado, o pipeline respeitará os novos filtros aplicados na ingestão.
+
+## Como Adaptar as Expressões Regulares (Regex) para Regras de Negócio
+
+Por padrão, o pipeline inclui uma etapa de pré-anonimização baseada em expressões regulares (regex). Esse processo varre os textos das manifestações para identificar e ocultar dados sensíveis comuns (como CPF, CNPJ, e-mails, placas de veículos e telefones), substituindo-os automaticamente pela tag `[ANONIMIZADO]`. Contudo, as necessidades de proteção de dados e análise podem variar (ex: necessidade de ocultar um número de matrícula de servidor específico ou manter determinados identificadores numéricos que não sejam sensíveis).
+
+Você pode alterar os critérios e padrões de anonimização diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/tratamento_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
+
+Localize o bloco de código Python responsável pela limpeza dos textos, especificamente onde o dicionário `patterns` é definido e a função de substituição é criada. O código padrão se parece com isto:
+
+```python
+patterns = {
+    "EMAIL": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+    "URL": r'https?:\/{1,2}[^\s"<>]+|www\.[^\s"<>]+',
+    "MANIFESTACAO": r"\d{5}(?:[.\-/_\s]*)\d{6}(?:[.\-/_\s]*)/?(?:[.\-/_\s]*)\d{4}(?:[.\-/_\s]*)\d{2}",
+    "CNPJ": r"\d{2}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)(?:[.\-/_\s]*)\d{4}(?:[.\-/_\s]*)\d{2}",
+    "CPF": r"\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{3}(?:[.\-/_\s]*)\d{2}",
+    "PLACA": r"([A-Za-z]{3}[.\-/_\s]*\d{4})|([A-Za-z]{3}[.\-/_\s]*\d[.\-/_\s]*[A-Za-z][.\-/_\s]*\d{2})",
+    "TELEFONE": r"(?:\+?55[.\-/_\s]*)?(?:\(?\d{2}\)?[.\-/_\s]*)?(?:9[.\-/_\s]*)?\d{4}[.\-/_\s]*\d{4}",
+    "RG": r"\d{1,3}(?:[.\-_\s]*)\d{3}(?:[.\-_\s]*)\d{2,3}(?:[.\-_\s]*)[\dXx]",
+    "CEP": r"\d{5}(?:[.\-/_\s]*)\d{3}",
+    "REDACTED": r"\d{6,}"
+}
+```
+
+Para adaptar esse código às suas regras negociais, você pode adicionar novas chaves ao dicionário `patterns` ou modificar as existentes. Observe que os padrões atuais utilizam extensivamente o grupo de captura não-nomeado `(?:[.\-/_\s]*)` para lidar com digitações sujas — como pontos, traços, barras e espaços irregulares inseridos pelos cidadãos durante a digitação.
+
+* **Adicionando novas regras:** Se o seu órgão utiliza um formato de processo interno padrão (ex: Número Único de Protocolo - NUP), você pode mapeá-lo adicionando uma nova linha ao dicionário: `"NUP": r"\d{5}\.\d{6}/\d{4}-\d{2}"`.
+* **Ajustando o rigor da limpeza:** Se a regra genérica de segurança `"REDACTED"` (que oculta preventivamente qualquer sequência de 6 ou mais números) estiver apagando dados numéricos importantes para a sua análise estatística, você pode removê-la do dicionário ou aumentar o limite de dígitos (ex: alterando para `r"\d{10,}"`).
+
+Para testar a eficácia de novas expressões regulares ou consultar a sintaxe antes de aplicá-las ao script, acesse plataformas de simulação como o [Regex101](https://regex101.com/) ou consulte a [Documentação Oficial do Módulo 're' do Python](https://docs.python.org/pt-br/3/library/re.html).
+
+Salve o arquivo após a alteração. Na próxima vez que o fluxo de tratamento dos dados for executado, os textos originais das manifestações serão anonimizados respeitando os novos padrões configurados.
 
 ------------------------------------------------------------------------
 

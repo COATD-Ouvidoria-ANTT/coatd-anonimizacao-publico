@@ -91,15 +91,24 @@ O `start.sh` deixará a aplicação disponível automaticamente. Abra o seu nave
 http://localhost:5000
 ```
 
-3.  **Acesse o Dashboard de Acompanhamento:** Para ver os gráficos de desempenho da equipe que está rotulando os dados, os relatórios são gerados e podem ser acessados por meio do endereço:
+4.  **Acesse o Dashboard de Acompanhamento:** Os relatórios são gerados e podem ser acessados por meio do endereço:
 
 ``` text
 http://localhost:4200
 ```
 
+5.  **Selecione o Arquivo do Diretório:** Para ver os gráficos de desempenho da equipe que está rotulando os dados, acesse o arquivo `relatorio_rme.html` dentro da interface apresentada após acessar o endereço http://localhost:4200.
+
+6.  **Finalizando o container Docker**: Ao finalizar a pipeline execute o comando abaixo para remover o container e desocupar as portas utilizadas:
+
+``` bash
+docker-compose down
+```
+
+
 ------------------------------------------------------------------------
 
-## Guia de Operação
+## Guia de Operação do Rotulador
 
 A tela principal exibirá um fragmento de texto da ouvidoria dividido palavra por palavra. Siga as instruções abaixo para classificar os dados:
 
@@ -130,9 +139,21 @@ Para garantir que o modelo de IA possua maior performance na hora de anonimizar 
 - **Diversidade de Cenários:** Para que a IA não fique "viciada", é fundamental rotular uma grande variedade de manifestações. Tente selecionar e rotular queixas longas, dúvidas curtas, textos muito formais (linguagem jurídica) e textos extremamente informais (com gírias ou erros de digitação). O modelo precisa aprender a encontrar os dados sensíveis em qualquer contexto e tom de voz.
 - **Geração de Dados Sintéticos:** Caso a sua ouvidoria possua um volume histórico muito baixo de manifestações registradas ou o trabalho de rotulação esteja sendo extremamente desgastante. Nesse cenário, é altamente recomendável criar **dados sintéticos**, ou seja, redigir textos fictícios simulando o padrão de reclamações do seu órgão e rotulá-los aqui. Isso aumenta a base de treino artificialmente e garante um modelo final muito mais seguro.
 
-## Atualização do Painel Gerencial
+## Guia de Operação do Dashboard
 
-Dentro da própria interface de rotulagem, ou no seu arquivo HTML gerado, existe um botão chamado **Atualizar Relatório**. Ao clicar nele, o sistema aciona o Quarto no plano de fundo, lê todas as marcações feitas até aquele segundo, e reconstrói os gráficos de volumetria e progresso para acompanhamento da gestão.
+O painel de monitoramento tem como objetivo acompanhar, em tempo real, o processo de rotulagem manual de entidades nomeadas. Siga as instruções abaixo para interpretar e interagir com os dados:
+
+- **Atualizando os Dados:** Para visualizar as informações mais recentes, clique no botão azul **Atualizar Relatório**, localizado no canto superior direito da tela. É obrigatório clicar neste botão toda vez que você quiser recarregar o painel com os dados das últimas anotações realizadas.
+
+- **Analisando os Indicadores Gerais:** Logo abaixo do cabeçalho, quatro cartões coloridos fornecem um resumo rápido do progresso do seu trabalho:
+- **Total de Mensagens Rotuladas (Azul):** Mostra a quantidade exata de manifestações que já foram revisadas e salvas.
+- **Total de Entidades Detectadas (Roxo):** Exibe o volume absoluto de todas as marcações individuais feitas (soma de todos os rótulos aplicados).
+- **Tipos de Entidades (Laranja):** Indica quantas categorias diferentes de dados sensíveis (ex: NOME, EMPRESA) foram encontradas e marcadas até o momento.
+- **Média de Entidades por Mensagem (Verde):** Mostra a proporção média de termos classificados dentro de cada texto processado.
+
+- **Acompanhando a Distribuição de Rótulos:** O gráfico de barras horizontais (à esquerda) exibe a **Contagem Total** de cada classe de entidade. Utilize-o para visualizar rapidamente o volume de cada categoria e entender quais tipos de dados (como EMPRESA ou NOME) estão aparecendo com mais frequência na base.
+  
+- **Avaliando o Tamanho das Entidades:** O gráfico de dispersão/boxplot (à direita) analisa o **tamanho** (comprimento) das marcações feitas para cada classe. Ele é fundamental para avaliar a qualidade das anotações, permitindo verificar a variação no tamanho dos termos selecionados e identificar se há anomalias (como marcações acidentalmente muito longas ou curtas demais) em categorias específicas.
 
 ## Como criar suas próprias entidades no Rotulador?
 
