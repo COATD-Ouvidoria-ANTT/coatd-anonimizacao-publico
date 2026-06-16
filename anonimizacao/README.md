@@ -15,28 +15,66 @@ O pipeline utiliza uma abordagem híbrida de alta eficiência:
 
 ```         
 anonimizacao/
-├── data/                                   # Diretório de armazenamento de dados
-│   ├── raw/                                # Dados de entrada
-│   │   └── txt/                            # Diretório de dados textuais
-│   │       └── ids_manifestacoes.txt       # IDs extraídos da API do Fala.BR
-│   └── processed/                          # Dados de saída (Anonimizados)
-│       ├── csv/                            # Exportação em texto delimitado
-│       │   └── data_anonimizado.csv        # Arquivo final com texto anonimizado
-│       └── xlsx/                           # Exportação para planilhas
-│           └── data_anonimizado.xlsx       # Arquivo final com texto anonimizado
-├── outputs/                                # Resultados visuais e gerenciais
-│   └── pdf/                                # Arquivos do Relatório de Treinamento
-│       └── relatorio_pipeline.pdf          # Relatório gerado com métricas de ofuscação
-└── scripts/                                # Lógica de processamento
-    └── qmd/                                # Documentos Quarto Markdown
-        └── pipeline_anonimizacao.qmd       # Script central que orquestra todo o fluxo
+├── data/                                                 # Diretório de armazenamento de dados
+│   ├── raw/                                              # Dados de entrada
+│   │   └── txt/                                          # Diretório de dados textuais
+│   │       └── ids_manifestacoes.txt                     # IDs extraídos da API do Fala.BR
+│   └── processed/                                        # Dados de saída (Anonimizados)
+│       ├── csv/                                          # Exportação em texto delimitado
+│       │   └── data_anonimizado.csv                      # Arquivo final com texto anonimizado
+│       └── xlsx/                                         # Exportação para planilhas
+│           └── data_anonimizado.xlsx                     # Arquivo final com texto anonimizado
+├── outputs/                                              # Resultados visuais e gerenciais
+│   └── pdf/                                              # Arquivos do Relatório de Treinamento
+│       └── relatorio_pipeline.pdf                        # Relatório gerado com métricas de ofuscação
+└── scripts/                                              # Lógica de processamento
+    └── qmd/                                              # Documentos Quarto Markdown
+        └── pipeline_anonimizacao.qmd                     # Script central que orquestra todo o fluxo
+        └── pipeline_anonimizacao_transformers.qmd        # Script que orquestra o fluxo avançado com arquitetura Transformers (GPU)
 ```
 
 ------------------------------------------------------------------------
 
+## Funcionalidade de Cada Componente
+
+### 1. Diretório `data/raw/` (Entrada Bruta)
+
+Atua como o ponto de partida do pipeline. Ele armazena os artefatos iniciais necessários para a ingestão de dados, especificamente na subpasta `txt/`, que contém o arquivo `ids_manifestacoes.txt`. Este arquivo serve como referência de chaves identificadoras para o sistema buscar o teor textual de cada registro diretamente na API do Fala.BR.
+
+### 2. Script Central (`pipeline_anonimizacao.qmd`)
+
+Um documento interativo Quarto que orquestra todo o fluxo de processamento e ofuscação de dados sensíveis. Ele consolida o pipeline executando o trabalho pesado em blocos lógicos:
+
+* **Extração:** Conecta-se à API do Fala.BR de forma segura para baixar os textos brutos das manifestações.
+* **Limpeza e Regex:** Aplica a Camada Estática para varrer e ofuscar dados padronizados (CPF, e-mails, placas e telefones).
+* **Chunking:** Fatiamento inteligente do texto utilizando o `spaCy` para criar sentenças contextuais que não ultrapassem o limite de leitura da Inteligência Artificial.
+* **Inferência NER:** Submete as frases à Camada Estocástica, utilizando o modelo local treinado (`model-best`) para localizar e mascarar nomes, empresas e localidades.
+* **Recomposição e Exportação:** Remonta o texto completamente anonimizado e o salva nos formatos de destino.
+
+### 2.1. Script de Anonimização Avançado (`pipeline_anonimizacao_transformers.qmd`)
+
+Um documento Quarto semelhante ao principal, porém projetado para executar a etapa de inferência de Inteligência Artificial utilizando a arquitetura profunda de Transformers.
+
+**Por que um script semelhante foi feito?**
+Para flexibilizar o processamento de acordo com o hardware da máquina que executará a rotina. Enquanto o script padrão é altamente otimizado para rodar em CPU, esta versão foi desenhada para explorar a aceleração matemática de placas de vídeo (GPUs) dedicadas, viabilizando o processamento em massa de todo o histórico retroativo da Ouvidoria em tempo recorde.
+
+### 3. Diretório `data/processed/` (Saída Final)
+
+É o repositório definitivo onde os dados higienizados e seguros são disponibilizados para consumo. Após o processamento, as manifestações anonimizadas são entregues em dois formatos acessíveis: `csv/` (texto delimitado, ideal para ingestão automatizada em bancos de dados) e `xlsx/` (planilhas prontas para leitura humana e análise por equipes não-técnicas).
+
+### 4. Diretório `outputs/pdf/` (Relatório de Impacto)
+
+Armazena o documento `relatorio_pipeline.pdf`, gerado automaticamente ao final de cada execução do script. Ele atua como um comprovante gerencial do processamento do dia, consolidando métricas e gráficos que demonstram visualmente o volume de informações pessoais (PII) bloqueadas pela Inteligência Artificial e pelas expressões regulares.
+
+### 5. Arquivo `.env` e Orquestração (Configuração)
+
+Embora não esteja explicitamente dentro das pastas, o pipeline depende de um arquivo `.env` na raiz do projeto para armazenar o token da API de forma segura. O ambiente como um todo é orquestrado via contêineres Docker (quando aplicável), que se encarregam de mapear volumes externos — consumindo o modelo de IA pesado da pasta anterior sem precisar duplicá-lo — e isolando todas as dependências de software.
+
+---
+
 ## Funcionalidade de Cada Etapa do Processamento
 
-O script central (`pipeline_anonimizacao.qmd`) é dividido em blocos lógicos executados sequencialmente:
+Os scripts das (`pipeline_anonimizacao.qmd` e `pipeline_anonimizacao_transformers.qmd`) são divididos em blocos lógicos executados sequencialmente:
 
 ### 1. Extração de Dados (API Fala.BR)
 
@@ -56,7 +94,7 @@ Modelos de Inteligência Artificial baseados em Transformers (como o BERT) possu
 
 ### 5. Inferência do Modelo NER (Inteligência Artificial)
 
-As frases cortadas são enviadas para o nosso modelo treinado localmente (`model-best`). O modelo lê a frase, compreende o contexto e identifica nomes de pessoas, empresas e localidades, substituindo-os pelas tags de proteção correspondentes (ex: `[NOME]`, `[EMPRESA]`).
+As frases cortadas são enviadas para o nosso modelo treinado localmente (`model-best`). O modelo lê a frase, compreende o contexto e identifica nomes de pessoas, empresas e localidades, substituindo-os pelas tags de proteção correspondentes (ex: `[NOME]`, `[EMPRESA]`). Essa é a única etapa com uma grande variação dentro do código, cada script (`pipeline_anonimizacao.qmd` e `pipeline_anonimizacao_transformers.qmd`) contêm o modelo treinado previamente de acordo com a abordagem escolhida.
 
 ### 6. Recomposição e Exportação
 
@@ -84,37 +122,62 @@ Exportação Final (.csv, .xlsx e relatório em .pdf)
 
 ------------------------------------------------------------------------
 
-## Como Executar o Pipeline
+## Como Executar o Pipeline de Anonimização
 
-### Pré-requisitos e Execução
-
-O texto original foi refinado para corrigir pequenos erros de digitação e garantir clareza no processo de configuração do `.env` e mapeamento do modelo. A numeração também foi corrigida.
-
-**Pré-requisitos:**
-
-* **Modelo de IA Disponível:** Certifique-se de que o modelo treinado (`model-best`) gerado na etapa anterior está corretamente posicionado na pasta `ner/models/v1_modelo_inicial/`. O modelo não foi copiado para a pasta `anonimizacao/` devido ao seu tamanho elevado. Para economizar espaço em disco e evitar redundâncias, o modelo foi mantido na pasta original e é consumido de forma inteligente apontando como um volume durante a criação do container.
-* **Variáveis de Ambiente (.env):** Tenha o arquivo `.env` na raiz do projeto contendo o `TOKEN_API_OUVIDORIA` válido. Se você seguiu a ordem cronológica do projeto, este arquivo já foi criado na pasta `processamento/`. Basta copiá-lo para a raiz da pasta `anonimizacao/`.
-* **Criação Manual do .env (Caso pule etapas):** Na raiz da pasta `anonimizacao/`, crie um arquivo vazio e renomeie-o estritamente para `.env` (sem nenhuma extensão oculta, como `.txt`). Abra-o em um editor de texto e insira o seu token de acesso da API após o sinal de igual, conforme o exemplo:
-
-```bash
-TOKEN_API_OUVIDORIA=insira_seu_token_valido_aqui
-
-```
+**Pré-requisitos:** Ter o arquivo `.env` configurado com o `TOKEN_API_OUVIDORIA` válido na raiz da pasta `anonimizacao/` e certificar-se de que o modelo de IA (`model-best`) está corretamente posicionado na pasta `ner/models/v1_modelo_inicial/`. O Docker e o Docker Compose devem estar instalados e em execução na máquina.
 
 1. **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
 
 ```bash
 cd anonimizacao
-
 ```
 
-2. **Inicie o container Docker:**
+2. **Inicie o container Docker:** Rode o comando abaixo para construir o ambiente e disparar o processamento de forma 100% automatizada:
 
 ```bash
-docker-compose up
+docker-compose --profile cpu up
 ```
 
-3. **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (com separador `;`). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
+O Docker Compose irá:
+
+* Carregar a imagem e montar os volumes necessários, mapeando o modelo de IA externamente.
+* Autenticar e extrair os dados brutos das manifestações na API do Fala.BR.
+* Aplicar a limpeza e o mascaramento por expressões regulares (Camada Estática).
+* Fatiar o texto inteligentemente e rodar a inferência com o modelo NER (Camada Estocástica).
+* Recompor os textos, exportar os dados seguros e compilar o relatório gerencial `relatorio_pipeline.pdf`.
+
+3. **Finalizando o container Docker:** Ao finalizar a pipeline, execute o comando abaixo para remover o container e liberar os recursos da rede:
+
+```bash
+docker-compose --profile cpu down
+```
+
+4. **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (com separador `;`). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
+---
+
+## Como Executar o Pipeline de Anonimização Avançado (Transformers)
+
+**Pré-requisitos:** Os mesmos listados acima (arquivo `.env` configurado e modelo posicionado). Para esta versão do pipeline, é **OBRIGATÓRIO** o uso de hardware com **GPU** (placa de vídeo) para processar grandes volumes de manifestações em um tempo viável.
+
+1. **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
+
+```bash
+cd anonimizacao
+```
+
+2. **Inicie o container Docker:** Rode o comando correspondente ao ambiente de transformers para disparar o processamento acelerado:
+
+```bash
+docker-compose --profile transformers up
+```
+
+3. **Finalizando o container Docker:** Ao finalizar a pipeline, execute o comando abaixo para remover o container:
+
+```bash
+docker-compose --profile transformers down
+```
+
+4. **Verifique as Saídas:** Semelhante ao fluxo padrão, os dados totalmente anonimizados estarão disponíveis nas subpastas de `data/processed/` e o relatório analítico estará na pasta `outputs/pdf/`.
 
 ---
 
@@ -201,7 +264,6 @@ As seguintes bibliotecas e ferramentas formam a base operacional deste pipeline:
 
 Com este pipeline consolidado e rodando localmente, os dados sensíveis estão resguardados. Os próximos passos para elevar o nível de maturidade do projeto incluem:
 
-- **Hardware Acceleration (Upgrade de Infraestrutura):** Implantação de clusters ou estações de trabalho equipadas com GPUs dedicadas para escalar o processamento e viabilizar a anonimização imediata de centenas de milhares de manifestações retroativas.
 - **Automação Contínua (Agendamento):** Orquestrar a execução deste script para rodar de forma automática todos os dias, integrando as saídas (dados anonimizados) para consumo imediato em ferramentas de *Business Intelligence* do seu Órgão.
 
 ## Contato e Suporte

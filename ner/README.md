@@ -144,7 +144,7 @@ As seguintes bibliotecas e ferramentas são o alicerce para a execução do trei
 
 ## Como Iniciar o Treinamento do Modelo Avançado (Transformers)
 
-**Pré-requisitos:** Ter o arquivo `dataset_rotulado.json` salvo na pasta `ner/data/raw/json/`. O Docker e o Docker Compose devem estar instalados. Para este modelo, é fortemente recomendado o uso de hardware com **GPU** (placa de vídeo) para um tempo de treinamento viável.
+**Pré-requisitos:** Ter o arquivo `dataset_rotulado.json` salvo na pasta `ner/data/raw/json/`. O Docker e o Docker Compose devem estar instalados. Para este modelo, é fortemente **OBRIGATÓRIO** o uso de hardware com **GPU** (placa de vídeo) para um tempo de treinamento viável.
 
 1.  **Navegue até o diretório do NER:** Abra o seu terminal e acesse a pasta correspondente:
 
