@@ -68,7 +68,7 @@ headers = {
 }
 
 data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
-data_limite = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
+data_limite = datetime.date.today().date()
 url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
 
 lista_ids = []
@@ -251,7 +251,7 @@ def anonimizar_regex(texto):
     return re.sub(r"\s+", " ", texto).strip()
 
 df["descricao_pre_anonimizada"] = df["descricao"].apply(anonimizar_regex).str.strip()
-df_amostra = df["descricao_pre_anonimizada"].head(1)
+df_amostra = df[["descricao_pre_anonimizada"]].head(1)
 display(Markdown(df_amostra.to_markdown(index=False)))
 ```
 
