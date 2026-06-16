@@ -226,7 +226,7 @@ As seguintes bibliotecas Python são utilizadas (especificadas em `requirements.
 
 ### Erro: "Imagem Docker não encontrada"
 
-- Execute: `docker build -t motor-anonimizacao-base .` na pasta raiz do projeto antes de executar a etapa `processamento/`.
+- Execute: `docker build -t motor-anonimizacao-base -f Dockerfile .` na pasta raiz do projeto antes de executar a etapa `processamento/`.
 
 ### Processamento muito lento
 
