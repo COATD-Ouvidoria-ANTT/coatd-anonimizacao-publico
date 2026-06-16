@@ -279,7 +279,7 @@ def preparar_base_treino(df, col_codigo, col_texto, nlp, limite_tokens=256):
                     linhas_expandidas.append({
                         'id_mensagem': id_unico_original,
                         'ordem_parte': sequencia_chunk,
-                        'descricao': " ".join([s.text for s in chunk_atual]).strip()
+                        col_texto: " ".join([s.text for s in chunk_atual]).strip()
                     })
                     sequencia_chunk += 1
                     chunk_atual = []
@@ -294,7 +294,7 @@ def preparar_base_treino(df, col_codigo, col_texto, nlp, limite_tokens=256):
                     linhas_expandidas.append({
                         'id_mensagem': id_unico_original,
                         'ordem_parte': sequencia_chunk,
-                        'descricao': chunk_text.strip()
+                        col_texto: chunk_text.strip()
                     })
                     sequencia_chunk += 1
                 continue
@@ -304,7 +304,7 @@ def preparar_base_treino(df, col_codigo, col_texto, nlp, limite_tokens=256):
                     linhas_expandidas.append({
                         'id_mensagem': id_unico_original,
                         'ordem_parte': sequencia_chunk,
-                        'descricao': " ".join([s.text for s in chunk_atual]).strip()
+                        col_texto: " ".join([s.text for s in chunk_atual]).strip()
                     })
                     sequencia_chunk += 1
 
@@ -319,15 +319,15 @@ def preparar_base_treino(df, col_codigo, col_texto, nlp, limite_tokens=256):
             linhas_expandidas.append({
                 'id_mensagem': id_unico_original,
                 'ordem_parte': sequencia_chunk,
-                'descricao': " ".join([s.text for s in chunk_atual]).strip()
+                col_texto: " ".join([s.text for s in chunk_atual]).strip()
             })
 
     return pd.DataFrame(linhas_expandidas)
 
-df_final = preparar_base_treino(df_partido, col_codigo='id_mensagem', col_texto='descricao', nlp=nlp)
+df_final = preparar_base_treino(df_anonimizado, col_codigo='id_mensagem', col_texto='descricao_anonimizada', nlp=nlp)
 
-df_amostra = df_final["descricao"].loc[
-    df_final["descricao"].str.contains("[ANONIMIZADO]", regex=False, na=False)
+df_amostra = df_final["descricao_anonimizada"].loc[
+    df_final["descricao_anonimizada"].str.contains("[ANONIMIZADO]", regex=False, na=False)
 ].head(1)
 
 display(Markdown(df_amostra.to_markdown(index=False)))
@@ -349,8 +349,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 gc.collect()
 
-num_threads = max(1, os.cpu_count() - 1)
-spacy.util.set_env_default("OMP_NUM_THREADS", str(num_threads))
+cpu_disponivel = os.process_cpu_count() or 1
+num_threads = max(1, cpu_disponivel - 1)
+os.environ["OMP_NUM_THREADS"] = str(num_threads)
 
 caminho_modelo = r"../../models/v1_modelo_inicial/model-best"
 nlp_custom = spacy.load(caminho_modelo)
