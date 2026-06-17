@@ -196,6 +196,25 @@ parametros = {
 }
 ```
 
+É possível observar um *loop* após a segunda requisação (Requisação feita com os IDs extraídos), ele é responsável por extrair os campos do `.csv` ou `.xlsx` estruturado ao final do pipeline. Consulte o dicionário da API do Fala.BR, citado no link após o código abaixo, para entender a arquitetura do `.json` e ter propriedade para adicionar chaves e listas ao *loop* abaixo.
+
+```python
+dados_filtrados = []
+
+for item in dados_completos:
+    id_manifestacao = item.get("IdManifestacao")
+    descricao = ((item.get("Teor") or {}).get("DescricaoAtosOuFatos") or {})
+
+    linha_filtrada = {
+        "id_mensagem": id_manifestacao,
+        "descricao": descricao
+    }
+    
+    dados_filtrados.append(linha_filtrada)
+```
+
+df = pd.DataFrame(dados_filtrados)
+
 A API do Fala.BR suporta a injeção de múltiplos filtros adicionais. Para consultar a lista completa de campos, chaves e formatos aceitos, acesse a [Documentação Oficial do Manual da API Fala.BR](https://falabr.cgu.gov.br/Help/Api?apiId=GET-api-manifestacoes_NumProtocolo_DataCadastroInicio_DataCadastroFim_DataPrazoRespostaInicio_DataPrazoRespostaFim_DataAtualizacaoInicio_DataAtualizacaoFim_IdSituacaoManifestacao_ApenasDenunciasAptas_ApenasComApuracaoDeEmpresa_ApenasComApuracaoDeServidor_IdTipoFormulario_MaxResultados_PosInicioPagina_OrderBy).
 
 Salve o arquivo após a alteração. Na próxima vez que o comando `docker-compose up` for executado, o pipeline respeitará os novos filtros aplicados na ingestão.
