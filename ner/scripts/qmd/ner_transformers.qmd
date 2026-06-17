@@ -154,7 +154,8 @@ subprocess.run([
     str(caminho_config), 
     "--lang", "pt", 
     "--pipeline", "transformer,ner",
-    "--optimize", "accuracy", 
+    "--optimize", "accuracy",
+    "--gpu",
     "--force"
 ], check=True)
 ```
