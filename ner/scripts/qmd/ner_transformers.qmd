@@ -162,9 +162,11 @@ subprocess.run([
 
 ### Verificação e injeção da arquitetura BERTimbau
 
-Para garantir que o treinamento utilize a melhor representação linguística do português brasileiro, foi necessário modificar o arquivo de configuração padrão gerado pelo spaCy. O modelo base genérico (`roberta-base` ou similar) foi substituído explicitamente pelo `neuralmind/bert-base-portuguese-cased` (conhecido como BERTimbau), um robusto modelo de aprendizado profundo treinado em um vasto corpus da língua portuguesa [@souza2020bertimbau]. 
+Para garantir que o treinamento utilize a melhor representação linguística do português brasileiro, foi necessário modificar o arquivo de configuração padrão gerado pelo spaCy. O modelo base genérico (`roberta-base`) foi substituído explicitamente pelo `neuralmind/bert-base-portuguese-cased` (conhecido como BERTimbau), um robusto modelo de aprendizado profundo treinado em um vasto corpus da língua portuguesa [@souza2020bertimbau]. 
 
 Essa modificação garante que os tensores de atenção sejam alimentados com um vocabulário altamente especializado antes de refinarmos a camada de NER. Também foram ajustados os pesos de avaliação para priorizar o `recall`, garantindo que o modelo seja mais sensível a identificar entidades, mesmo que isso ocasione um aumento nos falsos positivos. Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível pode ter consequências mais graves do que a identificação incorreta de uma entidade.
+
+O parâmetro `patience` também foi ajustado para reduzir o tempo de treinamento, permitindo que o modelo interrompa o processo mais cedo. O modelo fará 3 avaliações seguidas (200 + 200 + 200). Se em nenhuma dessas 3 tentativas a nota do modelo melhorar, ele interrompe o treinamento.
 
 ```{python}
 #| echo: false
@@ -175,10 +177,10 @@ with open(caminho_config, "r", encoding="utf-8") as f:
 
 modificacoes = {
     'name = "roberta-base"': 'name = "neuralmind/bert-base-portuguese-cased"',
-    'name = "bert-base-multilingual-cased"': 'name = "neuralmind/bert-base-portuguese-cased"',
     'ents_f = 1.0': 'ents_f = 0.0',
     'ents_p = 0.0': 'ents_p = 0.0',
-    'ents_r = 0.0': 'ents_r = 1.0'
+    'ents_r = 0.0': 'ents_r = 1.0',
+    'patience = 1600': 'patience = 600'
 }
 
 for antes, depois in modificacoes.items():
