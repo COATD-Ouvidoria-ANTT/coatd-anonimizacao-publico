@@ -349,7 +349,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 gc.collect()
 
-cpu_disponivel = os.process_cpu_count() or 1
+cpu_disponivel = os.cpu_count() or 1
 num_threads = max(1, cpu_disponivel - 1)
 os.environ["OMP_NUM_THREADS"] = str(num_threads)
 
