@@ -34,7 +34,6 @@ import re
 import os
 import requests
 import spacy
-import torch
 import gc
 from transformers import AutoTokenizer
 from datetime import datetime, timedelta
@@ -52,7 +51,7 @@ headers = {
 }
 
 data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
-data_limite = datetime.today().date()
+data_limite = datetime.date.today().date()
 url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
 
 lista_ids = []
@@ -240,18 +239,6 @@ df_amostra = df_anonimizado[["descricao_anonimizada"]].head(1)
 display(Markdown(df_amostra.to_markdown(index=False)))
 ```
 
-```{python}
-#| echo: false
-#| label: forcando-uso-gpu
-
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-    print(f"GPU disponível: {torch.cuda.get_device_name(0)}")
-else:
-    device = torch.device("cpu")
-    print("GPU não disponível, utilizando CPU.")
-```
-
 ------------------------------------------------------------------------
 
 ### **Segmentação de Sentenças (*Chunking*)**
@@ -362,7 +349,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 gc.collect()
 
-cpu_disponivel = os.process_cpu_count() or 1
+cpu_disponivel = os.cpu_count() or 1
 num_threads = max(1, cpu_disponivel - 1)
 os.environ["OMP_NUM_THREADS"] = str(num_threads)
 
