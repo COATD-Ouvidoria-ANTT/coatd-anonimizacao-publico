@@ -5,6 +5,7 @@ requests==2.34.2
 spacy==3.8.14
 spacy-transformers==1.4.0
 transformers==4.53.2
+cupy-cuda12x==14.1.1
 numpy==2.4.4
 matplotlib==3.10.8
 seaborn==0.13.2
