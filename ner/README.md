@@ -171,6 +171,17 @@ O fluxo automatizado irá:
 * Rodar os ciclos de aprendizado priorizando a sensibilidade (Recall) do modelo.
 * Compilar e mover o relatório final `ner_transformers.pdf` para a pasta de saídas.
 
+## Hiperparâmetro `patience` (Parada Antecipada)
+
+O script `ner_transformers.qmd` ajusta automaticamente o parâmetro `patience` do spaCy de `1600` para `600`. Este parâmetro controla o mecanismo de **parada antecipada** (*early stopping*): ele define quantos *steps* de treinamento sem melhoria na pontuação de validação são tolerados antes de o processo ser interrompido automaticamente.
+
+Como o spaCy avalia o modelo a cada **200 steps** por padrão, os valores se traduzem em:
+
+- `patience = 1600` (padrão spaCy): aguarda **8 avaliações** consecutivas sem melhoria.
+- `patience = 600` (valor ajustado): aguarda **3 avaliações** consecutivas sem melhoria.
+
+**Por que reduzir?** O treinamento com Transformers em GPU é muito mais custoso em tempo e memória do que o Tok2Vec. Reduzir o `patience` encurta o tempo total de treinamento quando o modelo já convergiu, evitando ciclos desnecessários sem ganho real de precisão. Se o seu dataset for grande e você observar que o modelo ainda estava melhorando quando o treinamento parou, aumente o valor para `900` ou `1200` diretamente no script `ner_transformers.qmd`.
+
 ## Entendendo as Métricas de Avaliação (Transformers)
 
 A lógica de avaliação é semelhante, porém o modelo baseado em redes neurais profundas exibe uma métrica de erro (LOSS) dividida em duas partes:
