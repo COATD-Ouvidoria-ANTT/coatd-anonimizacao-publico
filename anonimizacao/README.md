@@ -29,8 +29,8 @@ anonimizacao/
 │       └── relatorio_pipeline.pdf                        # Relatório gerado com métricas de ofuscação
 └── scripts/                                              # Lógica de processamento
     └── qmd/                                              # Documentos Quarto Markdown
-        └── pipeline_anonimizacao.qmd                     # Script central que orquestra todo o fluxo
-        └── pipeline_anonimizacao_transformers.qmd        # Script que orquestra o fluxo avançado com arquitetura Transformers (GPU)
+        └── anonimizacao_falabr.qmd                        # Script central que orquestra todo o fluxo
+        └── anonimizacao_falabr_transformers.qmd          # Script que orquestra o fluxo avançado com arquitetura Transformers (GPU)
 ```
 
 ------------------------------------------------------------------------
@@ -181,11 +181,40 @@ docker-compose --profile transformers down
 
 ---
 
+## Como Definir o Período de Extração (`DATA_INICIO` e `DATA_FIM`)
+
+A janela de datas da extração é controlada por duas variáveis de ambiente, **sem necessidade de editar o código-fonte**. Elas valem tanto para o perfil `cpu` quanto para o `transformers`:
+
+| Variável | Formato | Padrão (se não definida) |
+|---|---|---|
+| `DATA_INICIO` | `DD/MM/AAAA` | `01/01/2026` |
+| `DATA_FIM` | `DD/MM/AAAA` | data atual (`hoje`) |
+
+**Comportamento padrão** — subir o container sem definir nada coleta de **01/01/2026 até hoje**:
+
+``` bash
+docker-compose --profile cpu up
+```
+
+**Definindo um período específico** — exporte as variáveis antes de subir o container. O Docker Compose as injeta automaticamente no pipeline:
+
+``` bash
+# Linux / macOS / Git Bash
+DATA_INICIO=01/06/2026 DATA_FIM=30/06/2026 docker-compose --profile cpu up
+```
+
+``` powershell
+# Windows PowerShell
+$env:DATA_INICIO="01/06/2026"; $env:DATA_FIM="30/06/2026"; docker-compose --profile cpu up
+```
+
+Definir apenas `DATA_INICIO` mantém `DATA_FIM` no padrão (hoje). Se `DATA_INICIO` for posterior a `DATA_FIM`, o pipeline interrompe a execução com um erro de validação.
+
+> Alternativamente, as variáveis podem ser fixadas no arquivo `.env` (junto ao `TOKEN_API_OUVIDORIA`), tornando o período persistente entre execuções.
+
 ## Como Personalizar os Filtros de Extração
 
-Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de **01/01/2026 até a data atual**. Contudo, as necessidades de análise podem variar (ex: necessidade de extrair apenas denúncias, filtrar por tipo de formulário ou focar em manifestações com apuração de servidor).
-
-Você pode alterar os critérios da busca diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/anonimizacao_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
+Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de **01/01/2026 até a data atual** (ajustável pelas variáveis `DATA_INICIO`/`DATA_FIM` descritas acima). Contudo, as necessidades de análise podem variar (ex: necessidade de extrair apenas denúncias, filtrar por tipo de formulário ou focar em manifestações com apuração de servidor).
 
 Localize o bloco de código Python responsável pela requisição, especificamente onde o dicionário `parametros` é definido. O código padrão se parece com isto:
 
@@ -223,7 +252,7 @@ Salve o arquivo após a alteração. Na próxima vez que o comando `docker-compo
 
 Por padrão, o pipeline inclui uma etapa de pré-anonimização baseada em expressões regulares (regex). Esse processo varre os textos das manifestações para identificar e ocultar dados sensíveis comuns (como CPF, CNPJ, e-mails, placas de veículos e telefones), substituindo-os automaticamente pela tag `[ANONIMIZADO]`. Contudo, as necessidades de proteção de dados e análise podem variar (ex: necessidade de ocultar um número de matrícula de servidor específico ou manter determinados identificadores numéricos que não sejam sensíveis).
 
-Você pode alterar os critérios e padrões de anonimização diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/tratamento_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
+Você pode alterar os critérios e padrões de anonimização diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/anonimizacao_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
 
 Localize o bloco de código Python responsável pela limpeza dos textos, especificamente onde o dicionário `patterns` é definido e a função de substituição é criada. O código padrão se parece com isto:
 
