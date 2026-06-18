@@ -71,7 +71,7 @@ Atua como o maestro do container. Quando você executa o Docker Compose, este sc
 
 **Pré-requisitos:** Ter concluído a etapa da pasta `processamento` e possuir os arquivos de texto preparados dentro da pasta `data/raw/csv`.
 
-1.  **Navegue até o diretório rem**:
+1.  **Navegue até o diretório rme**:
 
 ``` bash
 cd rme
