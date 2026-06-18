@@ -15,6 +15,10 @@ services:
       - ./outputs:/app/outputs
 
     working_dir: /app
-    
+
+    environment:
+      - DATA_INICIO=${DATA_INICIO:-01/01/2026}
+      - DATA_FIM=${DATA_FIM:-}
+
     command: >
       bash -c "quarto render scripts/qmd/tratamento_falabr.qmd && mkdir -p outputs/pdf && mv scripts/qmd/*.pdf outputs/pdf/"

@@ -33,8 +33,9 @@ Define o ambiente containerizado onde o processamento é executado. Configuraç�
 - **Container**: `pipeline-processamento`
 - **Variáveis de Ambiente**: Carregadas do arquivo `.env`
 - **Volumes Montados**:
-  - ABNT, rme e \_quarto.yml da raiz do projeto
-  - Pastas data, scripts e outputs do processamento
+  - `ABNT/` e `_quarto.yml` da raiz do projeto (formatação dos relatórios)
+  - `../rme` montado em `/app/rme` dentro do container — **acoplamento direto com a próxima etapa**: o script escreve o arquivo `dataset_para_rotular.csv` diretamente na pasta `rme/data/raw/csv/` do host. A pasta `rme/` precisa existir no mesmo nível que `processamento/` antes de rodar este container.
+  - Pastas `data/`, `scripts/` e `outputs/` do processamento
 - **Diretório de Trabalho**: `/app` dentro do container
 - **Comando de Execução**: Renderiza o documento Quarto e move os PDFs gerados
 
@@ -42,7 +43,7 @@ Define o ambiente containerizado onde o processamento é executado. Configuraç�
 
 #### Subpasta `raw/`
 
-Armazena os dados brutos obtidos diretamente da API de ouvidoria. Tipicamente incluem: - ID das Manifestações registradas na ouvidoria
+Armazena os dados brutos obtidos diretamente da API do Fala.BR. Contém a subpasta `txt/` com o arquivo `ids_manifestacoes.txt`, gerado automaticamente pelo script durante a primeira fase de extração. Esse arquivo lista um `IdManifestacao` por linha e é usado como referência para a segunda fase (busca dos detalhes de cada manifestação).
 
 #### Subpasta `processed/`
 
@@ -98,10 +99,11 @@ Armazena os arquivos PDF gerados após o processamento. Estes documentos contêm
 
 ### Executando o Processamento
 
-1.  **Crie o arquivo `.env`**: Na raiz da pasta `processamento`/, crie um arquivo vazio chamado `.env`. Abra-o em um editor de texto, adicione a varíavel `TOKEN_API_OUVIDORIA`. Se atente ao tipo de arquivo, ele não pode possuir nenhum tipo, sendo apenas `.env`. 
+1.  **Crie o arquivo `.env`**: Na raiz da pasta `processamento`/, crie um arquivo vazio chamado `.env`. Abra-o em um editor de texto, adicione a varíavel `TOKEN_API_OUVIDORIA`. Se atente ao tipo de arquivo, ele não pode possuir nenhum tipo, sendo apenas `.env`.
 
-  - Exemplo Correto: `.env`
-  - Exemplo Incorreto: `.env.txt`
+- Exemplo Correto: `.env`
+
+- Exemplo Incorreto: `.env.txt`
 
 - Abra-o em um editor de texto, adicione a varíavel `TOKEN_API_OUVIDORIA` e adicione o seu token de acesso da API após o `=`, assim como no exemplo abaixo.
 
@@ -121,7 +123,7 @@ cd processamento
 docker-compose up
 ```
 
-4. **Finalizando o container Docker**: Ao finalizar a pipeline execute o comando abaixo para remover o container:
+4.  **Finalizando o container Docker**: Ao finalizar a pipeline execute o comando abaixo para remover o container:
 
 ``` bash
 docker-compose down
@@ -133,15 +135,42 @@ O Docker Compose irá: - Montar todos os volumes - Executar o comando de renderi
 
 5.  **Verifique os resultados**: Os arquivos PDF processados estarão disponíveis em `outputs/pdf/`.
 
+## Como Definir o Período de Extração (`DATA_INICIO` e `DATA_FIM`)
+
+A janela de datas da extração é controlada por duas variáveis de ambiente, **sem necessidade de editar o código-fonte**:
+
+| Variável      | Formato      | Padrão (se não definida) |
+|---------------|--------------|--------------------------|
+| `DATA_INICIO` | `DD/MM/AAAA` | `01/01/2026`             |
+| `DATA_FIM`    | `DD/MM/AAAA` | data atual (`hoje`)      |
+
+**Comportamento padrão** — subir o container sem definir nada coleta de **01/01/2026 até hoje**:
+
+``` bash
+docker-compose up
+```
+
+**Definindo um período específico** — exporte as variáveis antes de subir o container. O Docker Compose as injeta automaticamente no pipeline:
+
+``` bash
+# Linux / macOS / Git Bash
+DATA_INICIO=01/06/2026 DATA_FIM=30/06/2026 docker-compose up
+```
+
+``` powershell
+# Windows PowerShell
+$env:DATA_INICIO="01/06/2026"; $env:DATA_FIM="30/06/2026"; docker-compose up
+```
+
+Definir apenas `DATA_INICIO` mantém `DATA_FIM` no padrão (hoje). Se `DATA_INICIO` for posterior a `DATA_FIM`, o pipeline interrompe a execução com um erro de validação.
+
 ## Como Personalizar os Filtros de Extração
 
-Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de **01/01/2026 até a data atual**. Contudo, as necessidades de análise podem variar (ex: necessidade de extrair mais manifestações devido ao baixo volume de dados no ano de 2026).
-
-Você pode alterar os critérios da busca diretamente no código-fonte. Para isso, abra o arquivo `scripts/qmd/tratamento_falabr.qmd` utilizando qualquer ferramenta de edição de texto (como VS Code, RStudio, ou até mesmo o Bloco de Notas).
+Por padrão, o script de ingestão está configurado para coletar todo o acervo de manifestações a partir de **01/01/2026 até a data atual** (ajustável pelas variáveis `DATA_INICIO`/`DATA_FIM` descritas acima). Contudo, as necessidades de análise podem variar com a injeção de filtros adicionais da API (ex: tipo de formulário, situação da manifestação).
 
 Localize o bloco de código Python responsável pela requisição, especificamente onde o dicionário `parametros` é definido. O código padrão se parece com isto:
 
-```python
+``` python
 parametros = {
     "dataCadastroInicio": str_data,
     "dataCadastroFim": str_data
@@ -160,7 +189,7 @@ Você pode alterar os critérios e padrões de anonimização diretamente no có
 
 Localize o bloco de código Python responsável pela limpeza dos textos, especificamente onde o dicionário `patterns` é definido e a função de substituição é criada. O código padrão se parece com isto:
 
-```python
+``` python
 patterns = {
     "EMAIL": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
     "URL": r'https?:\/{1,2}[^\s"<>]+|www\.[^\s"<>]+',
@@ -177,8 +206,8 @@ patterns = {
 
 Para adaptar esse código às suas regras negociais, você pode adicionar novas chaves ao dicionário `patterns` ou modificar as existentes. Observe que os padrões atuais utilizam extensivamente o grupo de captura não-nomeado `(?:[.\-/_\s]*)` para lidar com digitações sujas — como pontos, traços, barras e espaços irregulares inseridos pelos cidadãos durante a digitação.
 
-* **Adicionando novas regras:** Se o seu órgão utiliza um formato de processo interno padrão (ex: Número Único de Protocolo - NUP), você pode mapeá-lo adicionando uma nova linha ao dicionário: `"NUP": r"\d{5}\.\d{6}/\d{4}-\d{2}"`.
-* **Ajustando o rigor da limpeza:** Se a regra genérica de segurança `"REDACTED"` (que oculta preventivamente qualquer sequência de 6 ou mais números) estiver apagando dados numéricos importantes para a sua análise estatística, você pode removê-la do dicionário ou aumentar o limite de dígitos (ex: alterando para `r"\d{10,}"`).
+- **Adicionando novas regras:** Se o seu órgão utiliza um formato de processo interno padrão (ex: Número Único de Protocolo - NUP), você pode mapeá-lo adicionando uma nova linha ao dicionário: `"NUP": r"\d{5}\.\d{6}/\d{4}-\d{2}"`.
+- **Ajustando o rigor da limpeza:** Se a regra genérica de segurança `"REDACTED"` (que oculta preventivamente qualquer sequência de 6 ou mais números) estiver apagando dados numéricos importantes para a sua análise estatística, você pode removê-la do dicionário ou aumentar o limite de dígitos (ex: alterando para `r"\d{10,}"`).
 
 Para testar a eficácia de novas expressões regulares ou consultar a sintaxe antes de aplicá-las ao script, acesse plataformas de simulação como o [Regex101](https://regex101.com/) ou consulte a [Documentação Oficial do Módulo 're' do Python](https://docs.python.org/pt-br/3/library/re.html).
 

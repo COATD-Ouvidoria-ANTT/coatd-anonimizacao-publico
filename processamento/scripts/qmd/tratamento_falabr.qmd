@@ -67,8 +67,18 @@ headers = {
     "Accept": "application/json"
 }
 
-data_atual = datetime.strptime("01/01/2026", "%d/%m/%Y").date()
-data_limite = datetime.date.today().date()
+data_inicio_str = os.getenv("DATA_INICIO", "01/01/2026")
+data_atual = datetime.strptime(data_inicio_str, "%d/%m/%Y").date()
+
+data_fim_str = os.getenv("DATA_FIM")
+if data_fim_str:
+    data_limite = datetime.strptime(data_fim_str, "%d/%m/%Y").date()
+else:
+    data_limite = datetime.today().date()
+
+if data_atual > data_limite:
+    raise ValueError(f"DATA_INICIO ({data_atual}) é posterior a DATA_FIM ({data_limite}).")
+
 url_api = "https://falabr.cgu.gov.br/api/manifestacoes"
 
 lista_ids = []
@@ -211,7 +221,7 @@ df["descricao"] = df["descricao"].astype(str)
 df["descricao"] = df["descricao"].str.replace(r'([^\w\s])(?:\s*\1)+', r'\1', regex=True)
 df["descricao"] = df["descricao"].str.replace(r'\s+', ' ', regex=True).str.strip()
 
-df_amostra = df.head(1)
+df_amostra = df[["descricao"]].head(1)
 display(Markdown(df_amostra.to_markdown(index=False)))
 ```
 
