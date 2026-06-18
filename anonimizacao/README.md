@@ -45,18 +45,17 @@ Atua como o ponto de partida do pipeline. Ele armazena os artefatos iniciais nec
 
 Um documento interativo Quarto que orquestra todo o fluxo de processamento e ofuscação de dados sensíveis. Ele consolida o pipeline executando o trabalho pesado em blocos lógicos:
 
-* **Extração:** Conecta-se à API do Fala.BR de forma segura para baixar os textos brutos das manifestações.
-* **Limpeza e Regex:** Aplica a Camada Estática para varrer e ofuscar dados padronizados (CPF, e-mails, placas e telefones).
-* **Chunking:** Fatiamento inteligente do texto utilizando o `spaCy` para criar sentenças contextuais que não ultrapassem o limite de leitura da Inteligência Artificial.
-* **Inferência NER:** Submete as frases à Camada Estocástica, utilizando o modelo local treinado (`model-best`) para localizar e mascarar nomes, empresas e localidades.
-* **Recomposição e Exportação:** Remonta o texto completamente anonimizado e o salva nos formatos de destino.
+- **Extração:** Conecta-se à API do Fala.BR de forma segura para baixar os textos brutos das manifestações.
+- **Limpeza e Regex:** Aplica a Camada Estática para varrer e ofuscar dados padronizados (CPF, e-mails, placas e telefones).
+- **Chunking:** Fatiamento inteligente do texto utilizando o `spaCy` para criar sentenças contextuais que não ultrapassem o limite de leitura da Inteligência Artificial.
+- **Inferência NER:** Submete as frases à Camada Estocástica, utilizando o modelo local treinado (`model-best`) para localizar e mascarar nomes, empresas e localidades.
+- **Recomposição e Exportação:** Remonta o texto completamente anonimizado e o salva nos formatos de destino.
 
 ### 2.1. Script de Anonimização Avançado (`pipeline_anonimizacao_transformers.qmd`)
 
 Um documento Quarto semelhante ao principal, porém projetado para executar a etapa de inferência de Inteligência Artificial utilizando a arquitetura profunda de Transformers.
 
-**Por que um script semelhante foi feito?**
-Para flexibilizar o processamento de acordo com o hardware da máquina que executará a rotina. Enquanto o script padrão é altamente otimizado para rodar em CPU, esta versão foi desenhada para explorar a aceleração matemática de placas de vídeo (GPUs) dedicadas, viabilizando o processamento em massa de todo o histórico retroativo da Ouvidoria em tempo recorde.
+**Por que um script semelhante foi feito?** Para flexibilizar o processamento de acordo com o hardware da máquina que executará a rotina. Enquanto o script padrão é altamente otimizado para rodar em CPU, esta versão foi desenhada para explorar a aceleração matemática de placas de vídeo (GPUs) dedicadas, viabilizando o processamento em massa de todo o histórico retroativo da Ouvidoria em tempo recorde.
 
 ### 3. Diretório `data/processed/` (Saída Final)
 
@@ -70,7 +69,7 @@ Armazena o documento `relatorio_pipeline.pdf`, gerado automaticamente ao final d
 
 Embora não esteja explicitamente dentro das pastas, o pipeline depende de um arquivo `.env` na raiz do projeto para armazenar o token da API de forma segura. O ambiente como um todo é orquestrado via contêineres Docker (quando aplicável), que se encarregam de mapear volumes externos — consumindo o modelo de IA pesado da pasta anterior sem precisar duplicá-lo — e isolando todas as dependências de software.
 
----
+------------------------------------------------------------------------
 
 ## Funcionalidade de Cada Etapa do Processamento
 
@@ -126,69 +125,68 @@ Exportação Final (.csv, .xlsx e relatório em .pdf)
 
 **Pré-requisitos:** Ter o arquivo `.env` configurado com o `TOKEN_API_OUVIDORIA` válido na raiz da pasta `anonimizacao/` e certificar-se de que o modelo de IA (`model-best`) está corretamente posicionado na pasta `ner/models/v1_modelo_inicial/`. O Docker e o Docker Compose devem estar instalados e em execução na máquina.
 
-1. **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
+1.  **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
 
-```bash
+``` bash
 cd anonimizacao
 ```
 
-2. **Inicie o container Docker:** Rode o comando abaixo para construir o ambiente e disparar o processamento de forma 100% automatizada:
+2.  **Inicie o container Docker:** Rode o comando abaixo para construir o ambiente e disparar o processamento de forma 100% automatizada:
 
-```bash
+``` bash
 docker-compose --profile cpu up
 ```
 
 O Docker Compose irá:
 
-* Carregar a imagem e montar os volumes necessários, mapeando o modelo de IA externamente.
-* Autenticar e extrair os dados brutos das manifestações na API do Fala.BR.
-* Aplicar a limpeza e o mascaramento por expressões regulares (Camada Estática).
-* Fatiar o texto inteligentemente e rodar a inferência com o modelo NER (Camada Estocástica).
-* Recompor os textos, exportar os dados seguros e compilar o relatório gerencial `relatorio_pipeline.pdf`.
+- Carregar a imagem e montar os volumes necessários, mapeando o modelo de IA externamente.
+- Autenticar e extrair os dados brutos das manifestações na API do Fala.BR.
+- Aplicar a limpeza e o mascaramento por expressões regulares (Camada Estática).
+- Fatiar o texto inteligentemente e rodar a inferência com o modelo NER (Camada Estocástica).
+- Recompor os textos, exportar os dados seguros e compilar o relatório gerencial `relatorio_pipeline.pdf`.
 
-3. **Finalizando o container Docker:** Ao finalizar a pipeline, execute o comando abaixo para remover o container e liberar os recursos da rede:
+3.  **Finalizando o container Docker:** Ao finalizar a pipeline, execute o comando abaixo para remover o container e liberar os recursos da rede:
 
-```bash
+``` bash
 docker-compose --profile cpu down
 ```
 
-4. **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (com separador `;`). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
----
+## 4. **Verifique as Saídas:** Após a conclusão, os dados limpos e prontos para uso seguro pela equipe estarão disponíveis em `data/processed/xlsx/` e `data/processed/csv/` (com separador `;`). Por fim, o relatório de impacto estará na pasta `outputs/pdf/`.
 
 ## Como Executar o Pipeline de Anonimização Avançado (Transformers)
 
 **Pré-requisitos:** Os mesmos listados acima (arquivo `.env` configurado e modelo posicionado). Para esta versão do pipeline, é **OBRIGATÓRIO** o uso de hardware com **GPU** (placa de vídeo) para processar grandes volumes de manifestações em um tempo viável.
 
-1. **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
+1.  **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
 
-```bash
+``` bash
 cd anonimizacao
 ```
 
-2. **Inicie o container Docker:** Rode o comando correspondente ao ambiente de transformers para disparar o processamento acelerado:
+2.  **Inicie o container Docker:** Rode o comando correspondente ao ambiente de transformers para disparar o processamento acelerado:
 
-```bash
+``` bash
 docker-compose --profile transformers up
 ```
 
-3. **Finalizando o container Docker:** Ao finalizar a pipeline, execute o comando abaixo para remover o container:
+3.  **Finalizando o container Docker:** Ao finalizar a pipeline, execute o comando abaixo para remover o container:
 
-```bash
+``` bash
 docker-compose --profile transformers down
 ```
 
-4. **Verifique as Saídas:** Semelhante ao fluxo padrão, os dados totalmente anonimizados estarão disponíveis nas subpastas de `data/processed/` e o relatório analítico estará na pasta `outputs/pdf/`.
+4.  **Verifique as Saídas:** Semelhante ao fluxo padrão, os dados totalmente anonimizados estarão disponíveis nas subpastas de `data/processed/` e o relatório analítico estará na pasta `outputs/pdf/`.
 
----
+------------------------------------------------------------------------
 
 ## Como Definir o Período de Extração (`DATA_INICIO` e `DATA_FIM`)
 
 A janela de datas da extração é controlada por duas variáveis de ambiente, **sem necessidade de editar o código-fonte**. Elas valem tanto para o perfil `cpu` quanto para o `transformers`:
 
-| Variável | Formato | Padrão (se não definida) |
-|---|---|---|
-| `DATA_INICIO` | `DD/MM/AAAA` | `01/01/2026` |
-| `DATA_FIM` | `DD/MM/AAAA` | data atual (`hoje`) |
+| Variável      | Formato      | Padrão (se não definida) |
+|---------------|--------------|--------------------------|
+| `DATA_INICIO` | `DD/MM/AAAA` | `01/01/2026`             |
+| `DATA_FIM`    | `DD/MM/AAAA` | data atual (`hoje`)      |
 
 **Comportamento padrão** — subir o container sem definir nada coleta de **01/01/2026 até hoje**:
 
@@ -218,7 +216,7 @@ Por padrão, o script de ingestão está configurado para coletar todo o acervo 
 
 Localize o bloco de código Python responsável pela requisição, especificamente onde o dicionário `parametros` é definido. O código padrão se parece com isto:
 
-```python
+``` python
 parametros = {
     "dataCadastroInicio": str_data,
     "dataCadastroFim": str_data
@@ -227,7 +225,7 @@ parametros = {
 
 É possível observar um *loop* após a segunda requisação (Requisação feita com os IDs extraídos), ele é responsável por extrair os campos do `.csv` ou `.xlsx` estruturado ao final do pipeline. Consulte o dicionário da API do Fala.BR, citado no link após o código abaixo, para entender a arquitetura do `.json` e ter propriedade para adicionar chaves e listas ao *loop* abaixo.
 
-```python
+``` python
 dados_filtrados = []
 
 for item in dados_completos:
@@ -256,7 +254,7 @@ Você pode alterar os critérios e padrões de anonimização diretamente no có
 
 Localize o bloco de código Python responsável pela limpeza dos textos, especificamente onde o dicionário `patterns` é definido e a função de substituição é criada. O código padrão se parece com isto:
 
-```python
+``` python
 patterns = {
     "EMAIL": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
     "URL": r'https?:\/{1,2}[^\s"<>]+|www\.[^\s"<>]+',
@@ -273,8 +271,8 @@ patterns = {
 
 Para adaptar esse código às suas regras negociais, você pode adicionar novas chaves ao dicionário `patterns` ou modificar as existentes. Observe que os padrões atuais utilizam extensivamente o grupo de captura não-nomeado `(?:[.\-/_\s]*)` para lidar com digitações sujas — como pontos, traços, barras e espaços irregulares inseridos pelos cidadãos durante a digitação.
 
-* **Adicionando novas regras:** Se o seu órgão utiliza um formato de processo interno padrão (ex: Número Único de Protocolo - NUP), você pode mapeá-lo adicionando uma nova linha ao dicionário: `"NUP": r"\d{5}\.\d{6}/\d{4}-\d{2}"`.
-* **Ajustando o rigor da limpeza:** Se a regra genérica de segurança `"REDACTED"` (que oculta preventivamente qualquer sequência de 6 ou mais números) estiver apagando dados numéricos importantes para a sua análise estatística, você pode removê-la do dicionário ou aumentar o limite de dígitos (ex: alterando para `r"\d{10,}"`).
+- **Adicionando novas regras:** Se o seu órgão utiliza um formato de processo interno padrão (ex: Número Único de Protocolo - NUP), você pode mapeá-lo adicionando uma nova linha ao dicionário: `"NUP": r"\d{5}\.\d{6}/\d{4}-\d{2}"`.
+- **Ajustando o rigor da limpeza:** Se a regra genérica de segurança `"REDACTED"` (que oculta preventivamente qualquer sequência de 6 ou mais números) estiver apagando dados numéricos importantes para a sua análise estatística, você pode removê-la do dicionário ou aumentar o limite de dígitos (ex: alterando para `r"\d{10,}"`).
 
 Para testar a eficácia de novas expressões regulares ou consultar a sintaxe antes de aplicá-las ao script, acesse plataformas de simulação como o [Regex101](https://regex101.com/) ou consulte a [Documentação Oficial do Módulo 're' do Python](https://docs.python.org/pt-br/3/library/re.html).
 
