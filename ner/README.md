@@ -49,7 +49,7 @@ Atua como a ponte entre a interface web e o motor de IA. Ele deve conter o arqui
 Um documento interativo Quarto que executa o treinamento em etapas lógicas:
 
 1.  **Análise Exploratória:** Conta quantas marcações de cada categoria (NOME, EMPRESA, etc.) existem.
-2.  **Separação de Dados:** Divide os dados em **Treino (80%)** e **Validação (20%)** para garantir que o modelo seja testado com textos que nunca viu antes.
+2.  **Separação de Dados:** Divide os dados em **Treino (70%)**, **Validação/*dev* (15%)** e **Teste/*held-out* (15%)**. O *dev* é usado durante o treino para selecionar o melhor modelo; o *teste* fica reservado para a avaliação final honesta, com textos que o modelo nunca viu — nem no treino, nem na seleção.
 3.  **Conversão (`DocBin`):** Transforma o arquivo JSON legível para humanos no formato `.spacy` binário, que é altamente eficiente para a máquina.
 4.  **Treinamento:** Ajusta os pesos do modelo pré-treinado (`pt_core_news_lg`) para que ele aprenda o vocabulário e os contextos específicos da nossa base de dados.
 5.  **Teste e Avaliação:** Executa um teste real com um texto fictício para provar que a IA aprendeu a localizar os dados.
@@ -121,7 +121,7 @@ dataset_rotulado.json (Conhecimento Humano)
         ↓
 ner.qmd (Script de Orquestração)
         ↓
-Divisão 80/20 (Treino e Validação)
+Divisão 70/15/15 (Treino, Validação e Teste)
         ↓
 Conversão para formato binário (.spacy)
         ↓
@@ -201,7 +201,7 @@ dataset_rotulado.json (Conhecimento Humano)
         ↓
 ner_transformers.qmd (Script de Orquestração Avançada)
         ↓
-Divisão 80/20 (Treino e Validação)
+Divisão 70/15/15 (Treino, Validação e Teste)
         ↓
 Conversão para formato binário (.spacy)
         ↓
@@ -239,7 +239,7 @@ As seguintes bibliotecas e ferramentas formam o alicerce para a execução do tr
 
 O treinamento de Inteligência Artificial nunca tem um fim definitivo. Com o modelo base treinado nesta pasta, iniciamos o ciclo de aprendizado contínuo:
 
-1.  **Deployment Local:** O `model-best` gerado aqui deve ser copiado e levado de volta para a pasta de `processamento` principal para rodar na produção diária.
+1.  **Deployment Local:** O `model-best` gerado aqui **não precisa ser copiado**. A pasta `ner/models/` é montada diretamente como volume no contêiner de `anonimizacao` (veja `anonimizacao/docker-compose.yml`: `../ner/models:/app/models`). Assim que o treinamento conclui, o pipeline de produção já consome o modelo recém-gerado automaticamente, sem duplicação de arquivos.
 2.  **Validação com Dados Desconhecidos:** Periodicamente, precisaremos testar a IA com textos novíssimos para garantir que a forma de escrever do público não mudou (*Data Drift*).
 3.  **Aprendizado Ativo (Active Learning):** As manifestações em que a IA ficar em dúvida serão separadas, enviadas novamente para a pasta `rme` (Rotulação), corrigidas por analistas humanos e devolvidas para esta pasta `ner` para um novo ciclo de treinamento, tornando a ferramenta cada vez mais implacável contra vazamentos de dados sensíveis.
 
@@ -249,7 +249,7 @@ O treinamento de Inteligência Artificial nunca tem um fim definitivo. Com o mod
 
 Após o treinamento e a validação do modelo nesta pasta, o ciclo de desenvolvimento da IA atinge um marco crucial. O modelo agora está pronto para sair do ambiente de "estudo" e ir para o mundo real. As próximas etapas consistem em:
 
-* **Integração no Pipeline Principal:** Transferir o artefato final (a pasta `model-best`) para a etapa de `anonimizacao`, substituindo o motor genérico pelo nosso novo modelo especialista.
+* **Integração no Pipeline Principal:** Nenhuma transferência manual é necessária. A etapa de `anonimizacao` lê o artefato final (`model-best`) diretamente da pasta `ner/models/` via volume Docker, garantindo que o pipeline de produção sempre utilize a versão mais recente do modelo especialista assim que o treinamento é concluído.
 
 ## Contato e Suporte
 

@@ -50,6 +50,7 @@ MODELO_V1_DIR.mkdir(parents=True, exist_ok=True)
 caminho_json_dados = DATA_DIR / "dataset_rotulado.json"
 caminho_train = MODELO_V1_DIR / "train.spacy"
 caminho_dev = MODELO_V1_DIR / "dev.spacy"
+caminho_test = MODELO_V1_DIR / "test.spacy"
 caminho_config = MODELO_V1_DIR / "config.cfg"
 
 with open(caminho_json_dados, "r", encoding="utf-8") as f:
@@ -70,9 +71,15 @@ for label, qtd in contagem_total.most_common():
 
 ## Divisão dos Dados
 
-### Divisão em conjunto de Treino e Validação
+### Divisão em conjunto de Treino, Validação e Teste
 
-Após a análise exploratória, os dados foram divididos em dois conjuntos: um para treino (80%) e outro para validação (20%). Essa divisão é essencial para avaliar o desempenho do modelo em dados que ele não viu durante o treinamento, garantindo uma avaliação mais realista da sua capacidade de generalização.
+Após a análise exploratória, os dados foram divididos em **três** conjuntos: treino (70%), validação/*dev* (15%) e teste (15%). Essa separação em três partes é essencial para uma avaliação honesta:
+
+- **Treino:** ajusta os pesos do modelo.
+- **Validação (*dev*):** usado *durante* o treinamento para selecionar o melhor *checkpoint* (`model-best`) e acionar a parada antecipada. Como o modelo é escolhido com base nele, suas métricas são naturalmente otimistas.
+- **Teste (*held-out*):** um conjunto que **nunca** é visto durante o treino nem na seleção do modelo. É nele que a avaliação final é reportada, fornecendo a estimativa realista de desempenho em produção.
+
+Avaliar no mesmo conjunto usado para selecionar o modelo (como ocorria na versão anterior, com apenas treino/validação) infla as métricas. A divisão em três conjuntos corrige isso.
 
 ```{python}
 #| echo: false
@@ -81,9 +88,13 @@ Após a análise exploratória, os dados foram divididos em dois conjuntos: um p
 random.seed(42)
 random.shuffle(dados_totais)
 
-tamanho_treino = int(len(dados_totais) * 0.8)
-dados_treino = dados_totais[:tamanho_treino]
-dados_teste = dados_totais[tamanho_treino:]
+n_total = len(dados_totais)
+fim_treino = int(n_total * 0.70)
+fim_dev = int(n_total * 0.85)
+
+dados_treino = dados_totais[:fim_treino]
+dados_dev = dados_totais[fim_treino:fim_dev]
+dados_teste = dados_totais[fim_dev:]
 
 nlp = spacy.blank("pt")
 
@@ -115,24 +126,28 @@ def converter_para_docbin(dados_lista, caminho_saida):
 
 print("Convertendo base de Treino...")
 qtd_train = converter_para_docbin(dados_treino, caminho_train)
-print("\nConvertendo base de Validação...")
-qtd_dev = converter_para_docbin(dados_teste, caminho_dev)
+print("\nConvertendo base de Validação (dev)...")
+qtd_dev = converter_para_docbin(dados_dev, caminho_dev)
+print("\nConvertendo base de Teste (held-out)...")
+qtd_test = converter_para_docbin(dados_teste, caminho_test)
 
-ents_treino = sum(len(item.get("entities", [])) for item in dados_treino)
-ents_teste = sum(len(item.get("entities", [])) for item in dados_teste)
+def resumo_conjunto(dados_lista):
+    ents = sum(len(item.get("entities", [])) for item in dados_lista)
+    vazios = sum(1 for item in dados_lista if not item.get("entities"))
+    labels = Counter(label for item in dados_lista for _, _, label in item.get("entities", []))
+    return ents, vazios, labels
 
-vazios_treino = sum(1 for item in dados_treino if not item.get("entities"))
-vazios_teste = sum(1 for item in dados_teste if not item.get("entities"))
+ents_treino, vazios_treino, labels_treino = resumo_conjunto(dados_treino)
+ents_dev, vazios_dev, labels_dev = resumo_conjunto(dados_dev)
+ents_teste, vazios_teste, labels_teste = resumo_conjunto(dados_teste)
 
-labels_treino = Counter(label for item in dados_treino for _, _, label in item.get("entities", []))
-labels_teste = Counter(label for item in dados_teste for _, _, label in item.get("entities", []))
-
-print(f"\nResumo da Divisão:")
-print(f"Textos -> Treino: {qtd_train} | Validação: {qtd_dev}")
-print(f"Entidades Totais -> Treino: {ents_treino} | Validação: {ents_teste}")
-print(f"Textos Vazios -> Treino: {vazios_treino} | Validação: {vazios_teste}")
+print(f"\nResumo da Divisão (70/15/15):")
+print(f"Textos -> Treino: {qtd_train} | Dev: {qtd_dev} | Teste: {qtd_test}")
+print(f"Entidades Totais -> Treino: {ents_treino} | Dev: {ents_dev} | Teste: {ents_teste}")
+print(f"Textos Vazios -> Treino: {vazios_treino} | Dev: {vazios_dev} | Teste: {vazios_teste}")
 print(f"Distribuição Treino: {dict(labels_treino)}")
-print(f"Distribuição Validação: {dict(labels_teste)}")
+print(f"Distribuição Dev: {dict(labels_dev)}")
+print(f"Distribuição Teste: {dict(labels_teste)}")
 ```
 
 # Treinamento do Modelo
@@ -164,7 +179,17 @@ subprocess.run([
 
 Para garantir que o treinamento utilize a melhor representação linguística do português brasileiro, foi necessário modificar o arquivo de configuração padrão gerado pelo spaCy. O modelo base genérico (`roberta-base`) foi substituído explicitamente pelo `neuralmind/bert-base-portuguese-cased` (conhecido como BERTimbau), um robusto modelo de aprendizado profundo treinado em um vasto corpus da língua portuguesa [@souza2020bertimbau]. 
 
-Essa modificação garante que os tensores de atenção sejam alimentados com um vocabulário altamente especializado antes de refinarmos a camada de NER. Também foram ajustados os pesos de avaliação para priorizar o `recall`, garantindo que o modelo seja mais sensível a identificar entidades, mesmo que isso ocasione um aumento nos falsos positivos. Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível pode ter consequências mais graves do que a identificação incorreta de uma entidade.
+Essa modificação garante que os tensores de atenção sejam alimentados com um vocabulário altamente especializado antes de refinarmos a camada de NER. Também foram ajustados os **pesos de seleção do modelo** (`score_weights`) para priorizar o `recall` sem abrir mão totalmente da precisão: `recall` recebe peso `0.67` e a precisão `0.33` — proporção de aproximadamente 2:1 que segue o espírito de uma métrica **F-beta=2** (favorecer a sensibilidade). Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível tem consequências mais graves do que um falso positivo.
+
+> **Por que não usar `recall` puro (peso 1.0)?** Selecionar o modelo apenas pelo `recall` premia um modelo degenerado que marca *tudo* como entidade (recall = 100%, precisão ≈ 0%). Manter a precisão com peso `0.33` na nota de seleção penaliza esse caso degenerado. A implementação de uma métrica F-beta=2 verdadeira (via *scorer* customizado) está prevista para uma fase posterior de refatoração.
+
+A fórmula geral da métrica **F-beta** pondera a precisão e o recall por meio do parâmetro $\beta$:
+
+$$F_\beta = (1 + \beta^2) \cdot \frac{\text{precision} \cdot \text{recall}}{\beta^2 \cdot \text{precision} + \text{recall}}$$
+
+Com $\beta = 2$ (a escolha deste projeto), o recall passa a pesar **quatro vezes** ($\beta^2 = 4$) mais que a precisão na nota final, traduzindo numericamente a prioridade pela sensibilidade:
+
+$$F_2 = 5 \cdot \frac{\text{precision} \cdot \text{recall}}{4 \cdot \text{precision} + \text{recall}}$$
 
 O parâmetro `patience` também foi ajustado para reduzir o tempo de treinamento, permitindo que o modelo interrompa o processo mais cedo. O modelo fará 3 avaliações seguidas (200 + 200 + 200). Se em nenhuma dessas 3 tentativas a nota do modelo melhorar, ele interrompe o treinamento.
 
@@ -178,8 +203,8 @@ with open(caminho_config, "r", encoding="utf-8") as f:
 modificacoes = {
     'name = "roberta-base"': 'name = "neuralmind/bert-base-portuguese-cased"',
     'ents_f = 1.0': 'ents_f = 0.0',
-    'ents_p = 0.0': 'ents_p = 0.0',
-    'ents_r = 0.0': 'ents_r = 1.0',
+    'ents_p = 0.0': 'ents_p = 0.33',
+    'ents_r = 0.0': 'ents_r = 0.67',
     'patience = 1600': 'patience = 600'
 }
 
@@ -215,7 +240,7 @@ print("\nTreinamento concluído. Gerando avaliação...")
 
 ### Interpretação dos resultados e avaliação do modelo
 
-Após o treinamento, o modelo foi avaliado utilizando métricas como precisão, recall e F1-score, que são fundamentais para entender a performance do modelo em reconhecer entidades corretamente. A precisão indica a proporção de entidades identificadas corretamente em relação ao total de entidades identificadas pelo modelo, enquanto o recall indica a proporção de entidades identificadas corretamente em relação ao total de entidades presentes no dataset. O F1-score é a média harmônica entre precisão e recall, fornecendo uma medida equilibrada da performance do modelo. Abaixo segue uma explicação mais detalhada de cada métrica:
+Após o treinamento, o modelo foi avaliado no **conjunto de teste (*held-out*)** — os 15% de dados que não foram usados nem no treino nem na seleção do `model-best`. Por isso, estas são as métricas honestas, representativas do desempenho esperado em produção. As principais métricas são precisão, recall e F1-score, que são fundamentais para entender a performance do modelo em reconhecer entidades corretamente. A precisão indica a proporção de entidades identificadas corretamente em relação ao total de entidades identificadas pelo modelo, enquanto o recall indica a proporção de entidades identificadas corretamente em relação ao total de entidades presentes no dataset. O F1-score é a média harmônica entre precisão e recall, fornecendo uma medida equilibrada da performance do modelo. Abaixo segue uma explicação mais detalhada de cada métrica:
 
 -   **E** (*Epochs*): Número de vezes que o modelo passou por todo o conjunto de treinamento. As vezes que o modelo é exposto aos dados de treinamento podem influenciar a capacidade de aprendizado, mas um número excessivo pode levar ao overfitting. Em resumo, as *Epochs* são quantas vezes o modelo "leu" o conjunto de dados para melhorar seu desempenho.
 
@@ -238,9 +263,9 @@ Após o treinamento, o modelo foi avaliado utilizando métricas como precisão, 
 #| label: avaliacao-modelo
 
 subprocess.run([
-    "python", "-m", "spacy", "evaluate", 
-    str(caminho_modelo_treinado), 
-    str(caminho_dev)
+    "python", "-m", "spacy", "evaluate",
+    str(caminho_modelo_treinado),
+    str(caminho_test)
 ], check=True)
 ```
 
