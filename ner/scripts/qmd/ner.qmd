@@ -167,8 +167,6 @@ O arquivo versionado parte do modelo pré-treinado `pt_core_news_lg` (que conté
 #| echo: false
 #| label: configuracao-treinamento
 
-# A configuração é versionada em models/config_cpu.cfg para garantir
-# reprodutibilidade. Aqui ela é apenas copiada para o diretório do modelo.
 config_versionado = MODELS_DIR / "config_cpu.cfg"
 shutil.copy(config_versionado, caminho_config)
 

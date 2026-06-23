@@ -166,8 +166,6 @@ Esse arquivo parte de uma configuração otimizada para precisão (`accuracy`) q
 #| echo: false
 #| label: configuracao-treinamento
 
-# A configuração é versionada em models/config_gpu.cfg para garantir
-# reprodutibilidade. Aqui ela é apenas copiada para o diretório do modelo.
 config_versionado = MODELS_DIR / "config_gpu.cfg"
 shutil.copy(config_versionado, caminho_config)
 
