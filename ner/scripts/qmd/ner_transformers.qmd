@@ -156,30 +156,31 @@ O treinamento do modelo de NER foi realizado utilizando a biblioteca spaCy, que 
 
 ## Configuração do Ambiente e Treinamento
 
-### Inicialização e configuração do pipeline com Transformers
+### Carregamento da configuração versionada do pipeline com Transformers
 
-Como ponto de partida, inicializamos uma configuração otimizada para precisão (`accuracy`) que inclui o componente `transformer` na pipeline do spaCy. Diferente das arquiteturas tradicionais que utilizam vetores de palavras estáticos, os modelos Transformers geram representações contextuais profundas. Essa arquitetura permite que a inteligência artificial entenda o peso de uma palavra com base em toda a frase ao seu redor, o que melhora drasticamente a capacidade do modelo de reconhecer e desambiguar entidades sensíveis complexas.
+A configuração de treinamento (`config.cfg`) **não é mais gerada dinamicamente** a cada execução: ela foi versionada no repositório em `models/config_gpu.cfg`. Isso garante **reprodutibilidade** — qualquer pessoa que rode o pipeline treina com exatamente os mesmos hiperparâmetros e a mesma arquitetura.
+
+Esse arquivo parte de uma configuração otimizada para precisão (`accuracy`) que inclui o componente `transformer` na pipeline do spaCy. Diferente das arquiteturas tradicionais que utilizam vetores de palavras estáticos, os modelos Transformers geram representações contextuais profundas, permitindo que a inteligência artificial entenda o peso de uma palavra com base em toda a frase ao seu redor — o que melhora drasticamente a capacidade do modelo de reconhecer e desambiguar entidades sensíveis complexas. O bloco abaixo apenas copia esse arquivo para o diretório do modelo, de onde o spaCy o consome durante o treinamento.
 
 ```{python}
 #| echo: false
 #| label: configuracao-treinamento
 
-subprocess.run([
-    "python", "-m", "spacy", "init", "config", 
-    str(caminho_config), 
-    "--lang", "pt", 
-    "--pipeline", "transformer,ner",
-    "--optimize", "accuracy",
-    "--gpu",
-    "--force"
-], check=True)
+# A configuração é versionada em models/config_gpu.cfg para garantir
+# reprodutibilidade. Aqui ela é apenas copiada para o diretório do modelo.
+config_versionado = MODELS_DIR / "config_gpu.cfg"
+shutil.copy(config_versionado, caminho_config)
+
+print(f"Configuração versionada carregada de: {config_versionado}")
 ```
 
-### Verificação e injeção da arquitetura BERTimbau
+### Customizações embutidas na configuração versionada
 
-Para garantir que o treinamento utilize a melhor representação linguística do português brasileiro, foi necessário modificar o arquivo de configuração padrão gerado pelo spaCy. O modelo base genérico (`roberta-base`) foi substituído explicitamente pelo `neuralmind/bert-base-portuguese-cased` (conhecido como BERTimbau), um robusto modelo de aprendizado profundo treinado em um vasto corpus da língua portuguesa [@souza2020bertimbau]. 
+Em relação ao template padrão gerado pelo spaCy, o arquivo `config_gpu.cfg` já incorpora as customizações abaixo, dispensando qualquer modificação manual em tempo de execução:
 
-Essa modificação garante que os tensores de atenção sejam alimentados com um vocabulário altamente especializado antes de refinarmos a camada de NER. Também foram ajustados os **pesos de seleção do modelo** (`score_weights`) para priorizar o `recall` sem abrir mão totalmente da precisão: `recall` recebe peso `0.67` e a precisão `0.33` — proporção de aproximadamente 2:1 que segue o espírito de uma métrica **F-beta=2** (favorecer a sensibilidade). Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível tem consequências mais graves do que um falso positivo.
+**1. Arquitetura BERTimbau.** Para garantir que o treinamento utilize a melhor representação linguística do português brasileiro, o modelo base genérico (`roberta-base`) foi substituído explicitamente pelo `neuralmind/bert-base-portuguese-cased` (conhecido como BERTimbau), um robusto modelo de aprendizado profundo treinado em um vasto corpus da língua portuguesa [@souza2020bertimbau]. Isso garante que os tensores de atenção sejam alimentados com um vocabulário altamente especializado antes de refinarmos a camada de NER.
+
+**2. Pesos de seleção do modelo (`score_weights`).** Foram ajustados para priorizar o `recall` sem abrir mão totalmente da precisão: `recall` recebe peso `0.67` e a precisão `0.33` — proporção de aproximadamente 2:1 que segue o espírito de uma métrica **F-beta=2** (favorecer a sensibilidade). Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível tem consequências mais graves do que um falso positivo.
 
 > **Por que não usar `recall` puro (peso 1.0)?** Selecionar o modelo apenas pelo `recall` premia um modelo degenerado que marca *tudo* como entidade (recall = 100%, precisão ≈ 0%). Manter a precisão com peso `0.33` na nota de seleção penaliza esse caso degenerado. A implementação de uma métrica F-beta=2 verdadeira (via *scorer* customizado) está prevista para uma fase posterior de refatoração.
 
@@ -191,31 +192,9 @@ Com $\beta = 2$ (a escolha deste projeto), o recall passa a pesar **quatro vezes
 
 $$F_2 = 5 \cdot \frac{\text{precision} \cdot \text{recall}}{4 \cdot \text{precision} + \text{recall}}$$
 
-O parâmetro `patience` também foi ajustado para reduzir o tempo de treinamento, permitindo que o modelo interrompa o processo mais cedo. O modelo fará 3 avaliações seguidas (200 + 200 + 200). Se em nenhuma dessas 3 tentativas a nota do modelo melhorar, ele interrompe o treinamento.
+**3. Parada antecipada (`patience`).** O parâmetro foi fixado em `600` (o padrão do spaCy é `1600`) para reduzir o tempo de treinamento, permitindo que o modelo interrompa o processo mais cedo. O modelo fará 3 avaliações seguidas (200 + 200 + 200); se em nenhuma dessas 3 tentativas a nota melhorar, o treinamento é interrompido.
 
-```{python}
-#| echo: false
-#| label: modificacao-configuracao
-
-with open(caminho_config, "r", encoding="utf-8") as f:
-    cfg_text = f.read()
-
-modificacoes = {
-    'name = "roberta-base"': 'name = "neuralmind/bert-base-portuguese-cased"',
-    'ents_f = 1.0': 'ents_f = 0.0',
-    'ents_p = 0.0': 'ents_p = 0.33',
-    'ents_r = 0.0': 'ents_r = 0.67',
-    'patience = 1600': 'patience = 600'
-}
-
-for antes, depois in modificacoes.items():
-    cfg_text = cfg_text.replace(antes, depois)
-
-with open(caminho_config, "w", encoding="utf-8") as f:
-    f.write(cfg_text)
-
-print("Configuração gerada e otimizada com sucesso.")
-```
+> Todos esses valores já estão fixados no arquivo versionado `config_gpu.cfg`; nenhum ajuste em tempo de execução é necessário.
 
 ### Execução do treinamento
 

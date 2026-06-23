@@ -157,29 +157,31 @@ O treinamento do modelo de NER foi realizado utilizando a biblioteca spaCy, que 
 
 ## Configuração do Ambiente e Treinamento
 
-### Instalação do modelo pré-treinado e configuração do pipeline
+### Carregamento da configuração versionada do pipeline
 
-Como ponto de partida, foi necessário instalar o modelo pré-treinado `pt_core_news_lg`, que contém vetores de palavras e informações linguísticas específicas para o português. Em seguida, foi criada uma configuração personalizada para o treinamento do modelo de NER, otimizando para precisão. Porém foi necessário realizar uma modificação manual na configuração para garantir que os vetores do modelo pré-treinado fossem utilizados durante o treinamento, o que pode melhorar significativamente a capacidade do modelo de reconhecer entidades.
+A configuração de treinamento (`config.cfg`) **não é mais gerada dinamicamente** a cada execução: ela foi versionada no repositório em `models/config_cpu.cfg`. Isso garante **reprodutibilidade** — qualquer pessoa que rode o pipeline treina com exatamente os mesmos hiperparâmetros, sem depender da versão do spaCy instalada para gerar o template padrão.
+
+O arquivo versionado parte do modelo pré-treinado `pt_core_news_lg` (que contém vetores de palavras e informações linguísticas específicas para o português) e já foi otimizado para precisão (`accuracy`). O bloco abaixo apenas copia esse arquivo para o diretório do modelo, de onde o spaCy o consome durante o treinamento.
 
 ```{python}
 #| echo: false
 #| label: configuracao-treinamento
 
-subprocess.run([
-    "python", "-m", "spacy", "init", "config", 
-    str(caminho_config), 
-    "--lang", "pt", 
-    "--pipeline", "ner", 
-    "--optimize", "accuracy", 
-    "--force"
-], check=True)
+# A configuração é versionada em models/config_cpu.cfg para garantir
+# reprodutibilidade. Aqui ela é apenas copiada para o diretório do modelo.
+config_versionado = MODELS_DIR / "config_cpu.cfg"
+shutil.copy(config_versionado, caminho_config)
+
+print(f"Configuração versionada carregada de: {config_versionado}")
 ```
 
-### Verificação e modificação da configuração para utilização dos vetores pré-treinados
+### Customizações embutidas na configuração versionada
 
-Vetores pré-treinados são representações numéricas de palavras que capturam semântica e contexto, o que pode melhorar significativamente o desempenho do modelo de NER. No entanto, a configuração gerada inicialmente não incluía a referência aos vetores pré-treinados. Portanto, foi necessário abrir o arquivo de configuração e modificar a linha correspondente para garantir que os vetores do modelo `pt_core_news_lg` fossem utilizados durante o treinamento.
+Em relação ao template padrão gerado pelo spaCy, o arquivo `config_cpu.cfg` já incorpora duas customizações importantes, dispensando qualquer modificação manual em tempo de execução:
 
-Também foram ajustados os **pesos de seleção do modelo** (`score_weights`) para priorizar o `recall` sem abrir mão totalmente da precisão: `recall` recebe peso `0.67` e a precisão `0.33` — proporção de aproximadamente 2:1 que segue o espírito de uma métrica **F-beta=2** (favorecer a sensibilidade). Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível tem consequências mais graves do que um falso positivo.
+**1. Uso dos vetores pré-treinados.** Vetores pré-treinados são representações numéricas de palavras que capturam semântica e contexto, o que pode melhorar significativamente o desempenho do modelo de NER. O template padrão não referencia esses vetores; por isso o campo `vectors` foi fixado em `"pt_core_news_lg"`, garantindo que os vetores do modelo pré-treinado sejam utilizados durante o treinamento.
+
+**2. Pesos de seleção do modelo (`score_weights`).** Foram ajustados para priorizar o `recall` sem abrir mão totalmente da precisão: `recall` recebe peso `0.67` e a precisão `0.33` — proporção de aproximadamente 2:1 que segue o espírito de uma métrica **F-beta=2** (favorecer a sensibilidade). Essa configuração é crucial para aplicações onde a omissão de uma entidade sensível tem consequências mais graves do que um falso positivo.
 
 > **Por que não usar `recall` puro (peso 1.0)?** Selecionar o modelo apenas pelo `recall` premia um modelo degenerado que marca *tudo* como entidade (recall = 100%, precisão ≈ 0%). Manter a precisão com peso `0.33` na nota de seleção penaliza esse caso degenerado. A implementação de uma métrica F-beta=2 verdadeira (via *scorer* customizado) está prevista para uma fase posterior de refatoração.
 
@@ -191,28 +193,7 @@ Com $\beta = 2$ (a escolha deste projeto), o recall passa a pesar **quatro vezes
 
 $$F_2 = 5 \cdot \frac{\text{precision} \cdot \text{recall}}{4 \cdot \text{precision} + \text{recall}}$$
 
-```{python}
-#| echo: false
-#| label: modificacao-configuracao
-
-with open(caminho_config, "r", encoding="utf-8") as f:
-    cfg_text = f.read()
-
-modificacoes = {
-    'vectors = null': 'vectors = "pt_core_news_lg"',
-    'ents_f = 1.0': 'ents_f = 0.0',
-    'ents_p = 0.0': 'ents_p = 0.33',
-    'ents_r = 0.0': 'ents_r = 0.67'
-}
-
-for antes, depois in modificacoes.items():
-    cfg_text = cfg_text.replace(antes, depois)
-
-with open(caminho_config, "w", encoding="utf-8") as f:
-    f.write(cfg_text)
-
-print("Configuração gerada e otimizada com sucesso.")
-```
+> Esses valores já estão fixados no arquivo versionado `config_cpu.cfg`; nenhum ajuste em tempo de execução é necessário.
 
 ### Execução do treinamento
 
