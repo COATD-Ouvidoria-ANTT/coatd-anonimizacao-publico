@@ -72,7 +72,7 @@ Embora siga as mesmas etapas lógicas (Análise, Divisão, Conversão, Treinamen
 
 Os arquivos de configuração do treinamento spaCy **são versionados no repositório**, dentro da pasta `models/`, em vez de serem gerados dinamicamente a cada execução. Isso garante **reprodutibilidade**: qualquer pessoa que clone o projeto treina com exatamente os mesmos hiperparâmetros, independentemente da versão do spaCy instalada.
 
-- **`config_cpu.cfg`** — usado pelo `ner.qmd`. Arquitetura Tok2Vec com `vectors = "pt_core_news_lg"`.
+- **`config_cpu.cfg`** — usado pelo `ner.qmd`. Arquitetura Tok2Vec com `vectors = "pt_core_news_lg"` e `patience = 600`.
 - **`config_gpu.cfg`** — usado pelo `ner_transformers.qmd`. Arquitetura Transformer com `neuralmind/bert-base-portuguese-cased` (BERTimbau) e `patience = 600`.
 
 Ambos já trazem os **pesos de seleção do modelo** (`score_weights`) ajustados para priorizar o *recall* (`ents_p = 0.33`, `ents_r = 0.67`), no espírito de uma métrica F-beta=2. No início de cada execução o script apenas **copia** o `.cfg` correspondente para `models/<modelo>/config.cfg`, de onde o spaCy o consome. Para alterar os hiperparâmetros do treino, edite diretamente o `.cfg` versionado.
@@ -112,6 +112,17 @@ O Docker Compose irá: \* Carregar a imagem e montar os volumes necessários. \*
 ``` bash
 docker-compose --profile cpu down
 ```
+
+## Hiperparâmetro `patience` (Parada Antecipada)
+
+A configuração versionada define o parâmetro `patience` do spaCy como `600` (o padrão do spaCy é `1600`). Este parâmetro controla o mecanismo de **parada antecipada** (*early stopping*): ele define quantos *steps* de treinamento sem melhoria na pontuação de validação são tolerados antes de o processo ser interrompido automaticamente.
+
+Como o spaCy avalia o modelo a cada **200 steps** por padrão, os valores se traduzem em:
+
+- `patience = 1600` (padrão spaCy): aguarda **8 avaliações** consecutivas sem melhoria.
+- `patience = 600` (valor ajustado): aguarda **3 avaliações** consecutivas sem melhoria.
+
+**Por que reduzir?** Reduzir o `patience` encurta o tempo total de treinamento quando o modelo já convergiu, evitando ciclos desnecessários sem ganho real de precisão. Se o seu dataset for grande e você observar que o modelo ainda estava melhorando quando o treinamento parou, aumente o valor para `900` ou `1200` diretamente nos arquivos `models/config_cpu.cfg`.
 
 ## Entendendo as Métricas de Avaliação
 
@@ -186,14 +197,14 @@ O fluxo automatizado irá:
 
 ## Hiperparâmetro `patience` (Parada Antecipada)
 
-A configuração versionada `models/config_gpu.cfg` define o parâmetro `patience` do spaCy como `600` (o padrão do spaCy é `1600`). Este parâmetro controla o mecanismo de **parada antecipada** (*early stopping*): ele define quantos *steps* de treinamento sem melhoria na pontuação de validação são tolerados antes de o processo ser interrompido automaticamente.
+A configuração versionada define o parâmetro `patience` do spaCy como `600` (o padrão do spaCy é `1600`). Este parâmetro controla o mecanismo de **parada antecipada** (*early stopping*): ele define quantos *steps* de treinamento sem melhoria na pontuação de validação são tolerados antes de o processo ser interrompido automaticamente.
 
 Como o spaCy avalia o modelo a cada **200 steps** por padrão, os valores se traduzem em:
 
 - `patience = 1600` (padrão spaCy): aguarda **8 avaliações** consecutivas sem melhoria.
 - `patience = 600` (valor ajustado): aguarda **3 avaliações** consecutivas sem melhoria.
 
-**Por que reduzir?** O treinamento com Transformers em GPU é muito mais custoso em tempo e memória do que o Tok2Vec. Reduzir o `patience` encurta o tempo total de treinamento quando o modelo já convergiu, evitando ciclos desnecessários sem ganho real de precisão. Se o seu dataset for grande e você observar que o modelo ainda estava melhorando quando o treinamento parou, aumente o valor para `900` ou `1200` diretamente no arquivo `models/config_gpu.cfg`.
+**Por que reduzir?** Reduzir o `patience` encurta o tempo total de treinamento quando o modelo já convergiu, evitando ciclos desnecessários sem ganho real de precisão. Se o seu dataset for grande e você observar que o modelo ainda estava melhorando quando o treinamento parou, aumente o valor para `900` ou `1200` diretamente nos arquivos `models/config_gpu.cfg`.
 
 ## Entendendo as Métricas de Avaliação (Transformers)
 

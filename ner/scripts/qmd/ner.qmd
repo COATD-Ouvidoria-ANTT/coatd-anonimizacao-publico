@@ -29,8 +29,41 @@ import json
 import random
 import shutil
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
+```
+
+```{python}
+#| echo: false
+#| label: funcao-execucao-com-log
+def executar_com_log_ao_vivo(comando):
+    try:
+        terminal = open("/proc/1/fd/1", "w")
+    except OSError:
+        terminal = None
+
+    processo = subprocess.Popen(
+        comando,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    for linha in processo.stdout:
+        sys.stdout.write(linha)
+        sys.stdout.flush()
+        if terminal is not None:
+            terminal.write(linha)
+            terminal.flush()
+
+    processo.wait()
+    if terminal is not None:
+        terminal.close()
+
+    if processo.returncode != 0:
+        raise subprocess.CalledProcessError(processo.returncode, comando)
 ```
 
 ```{python}
@@ -191,6 +224,8 @@ Com $\beta = 2$ (a escolha deste projeto), o recall passa a pesar **quatro vezes
 
 $$F_2 = 5 \cdot \frac{\text{precision} \cdot \text{recall}}{4 \cdot \text{precision} + \text{recall}}$$
 
+**3. Parada antecipada (`patience`).** O parâmetro foi fixado em `600` (o padrão do spaCy é `1600`) para reduzir o tempo de treinamento, permitindo que o modelo interrompa o processo mais cedo. O modelo fará 3 avaliações seguidas (200 + 200 + 200); se em nenhuma dessas 3 tentativas a nota melhorar, o treinamento é interrompido.
+
 > Esses valores já estão fixados no arquivo versionado `config_cpu.cfg`; nenhum ajuste em tempo de execução é necessário.
 
 ### Execução do treinamento
@@ -203,13 +238,13 @@ O modelo foi treinado utilizando o comando de treinamento do `spaCy`, especifica
 
 print("Iniciando o treinamento (isso pode levar algum tempo)...")
 
-subprocess.run([
-    "python", "-m", "spacy", "train", 
+executar_com_log_ao_vivo([
+    "python", "-u", "-m", "spacy", "train",
     str(caminho_config),
     "--output", str(MODELO_V1_DIR),
     "--paths.train", str(caminho_train),
     "--paths.dev", str(caminho_dev)
-], check=True)
+])
 
 print("\nTreinamento concluído. Gerando avaliação...")
 ```
@@ -238,11 +273,11 @@ Após o treinamento, o modelo foi avaliado no **conjunto de teste (*held-out*)**
 #| echo: false
 #| label: avaliacao-modelo
 
-subprocess.run([
-    "python", "-m", "spacy", "evaluate",
+executar_com_log_ao_vivo([
+    "python", "-u", "-m", "spacy", "evaluate",
     str(caminho_modelo_treinado),
     str(caminho_test)
-], check=True)
+])
 ```
 
 ## Teste do modelo treinado
