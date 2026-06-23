@@ -44,7 +44,7 @@
 # --- Modelos ---
 # Bloqueia modelos pesados (BERTimbau, spaCy, etc) em qualquer pasta 'models'
 **/models/*
-!**/models/.gitkeep
+!**/models/config*.cfg
 
 # --- Saídas ---
 # Bloqueia relatórios gerados em qualquer pasta 'outputs'

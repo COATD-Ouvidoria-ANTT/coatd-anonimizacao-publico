@@ -50,8 +50,8 @@ Como este projeto lida com dados sensíveis da Ouvidoria, o `.gitignore` foi rig
 
 * **Bloqueio de Credenciais:** Impede o versionamento do arquivo `.env`, garantindo que o token da API da CGU nunca seja exposto no controle de versão.
 * **Bloqueio de Dados (LGPD):** Ignora todas as extensões de dados (`.csv`, `.xlsx`, `.json`, `.txt`) dentro das pastas `data/raw/` e `data/processed/`.
-* **Bloqueio de Modelos Pesados:** Ignora a pasta `models/`, evitando que o repositório trave ao tentar subir redes neurais de vários gigabytes.
-* **Preservação de Estrutura:** Utiliza a estratégia de exceção com arquivos vazios `!/.gitkeep`. Isso garante que as pastas sejam criadas na máquina de outros desenvolvedores, mesmo sem enviar os dados que deveriam estar dentro delas.
+* **Bloqueio de Modelos Pesados:** Ignora a pasta `models/`, evitando que o repositório trave ao tentar subir redes neurais de vários gigabytes. A única exceção são os arquivos de configuração de treino versionados (`!**/models/config*.cfg`, como `config_cpu.cfg` e `config_gpu.cfg`), que são leves e garantem a reprodutibilidade do treinamento.
+* **Preservação de Estrutura:** Utiliza a estratégia de exceção com arquivos vazios `!/.gitkeep`. Isso garante que as pastas sejam criadas na máquina de outros desenvolvedores, mesmo sem enviar os dados que deveriam estar dentro delas. Nas pastas `models/`, os próprios arquivos `config*.cfg` versionados já cumprem esse papel de manter a estrutura.
 
 ### Padronização de Finais de Linha (`.gitattributes`)
 
