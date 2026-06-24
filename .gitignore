@@ -46,6 +46,9 @@
 **/models/*
 !**/models/config*.cfg
 
+# --- CLAUDE ---
+CLAUDE.md
+
 # --- Saídas ---
 # Bloqueia relatórios gerados em qualquer pasta 'outputs'
 **/outputs/pdf/*
