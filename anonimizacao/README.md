@@ -67,7 +67,11 @@ Armazena o documento `relatorio_pipeline.pdf`, gerado automaticamente ao final d
 
 ### 5. Arquivo `.env` e Orquestração (Configuração)
 
-Embora não esteja explicitamente dentro das pastas, o pipeline depende de um arquivo `.env` na raiz do projeto para armazenar o token da API de forma segura. O ambiente como um todo é orquestrado via contêineres Docker (quando aplicável), que se encarregam de mapear volumes externos — consumindo o modelo de IA pesado da pasta anterior sem precisar duplicá-lo — e isolando todas as dependências de software.
+Embora não esteja explicitamente dentro das pastas, o pipeline depende de um arquivo `.env` na raiz da pasta `anonimizacao/` para armazenar o token da API de forma segura. Para facilitar a configuração, há um modelo versionado `.env.example` (contendo a variável `TOKEN_API_OUVIDORIA=`): basta copiá-lo para `.env` e preencher o token.
+
+```bash
+cp .env.example .env
+```
 
 ------------------------------------------------------------------------
 
@@ -123,7 +127,13 @@ Exportação Final (.csv, .xlsx e relatório em .pdf)
 
 ## Como Executar o Pipeline de Anonimização
 
-**Pré-requisitos:** Ter o arquivo `.env` configurado com o `TOKEN_API_OUVIDORIA` válido na raiz da pasta `anonimizacao/` e certificar-se de que o modelo de IA (`model-best`) está corretamente posicionado na pasta `ner/models/v1_modelo_inicial/`. O Docker e o Docker Compose devem estar instalados e em execução na máquina.
+**Pré-requisitos:** Ter o arquivo `.env` configurado com o `TOKEN_API_OUVIDORIA` válido na raiz da pasta `anonimizacao/`, você pode partir do modelo `.env.example` utilizando o comando abaixo:
+
+```bash
+ cp .env.example .env
+```
+
+Certifique-se de que o modelo de IA (`model-best`) está corretamente posicionado na pasta `ner/models/'seu_modelo'/`. O Docker e o Docker Compose devem estar instalados e em execução na máquina.
 
 1.  **Navegue até a pasta do pipeline:** Abra o seu terminal e acesse a pasta correspondente:
 

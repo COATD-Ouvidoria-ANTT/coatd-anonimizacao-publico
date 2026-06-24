@@ -48,7 +48,13 @@ Suas principais definições incluem:
 
 Como este projeto lida com dados sensíveis da Ouvidoria, o `.gitignore` foi rigorosamente configurado para impedir vazamentos e manter o repositório leve:
 
-* **Bloqueio de Credenciais:** Impede o versionamento do arquivo `.env`, garantindo que o token da API da CGU nunca seja exposto no controle de versão.
+* **Bloqueio de Credenciais:** Impede o versionamento do arquivo `.env`, garantindo que o token da API da CGU nunca seja exposto no controle de versão. Para orientar a configuração sem expor segredos, cada etapa que consome a API (`processamento/` e `anonimizacao/`) versiona um modelo `.env.example` contendo apenas a variável `TOKEN_API_OUVIDORIA=` (sem valor) — basta copiá-lo para `.env` com o código abaixo:
+
+```bash
+cp .env.example .env
+```
+
+Após isso, preencha o token dentro do arquivo.
 * **Bloqueio de Dados (LGPD):** Ignora todas as extensões de dados (`.csv`, `.xlsx`, `.json`, `.txt`) dentro das pastas `data/raw/` e `data/processed/`.
 * **Bloqueio de Modelos Pesados:** Ignora a pasta `models/`, evitando que o repositório trave ao tentar subir redes neurais de vários gigabytes. A única exceção são os arquivos de configuração de treino versionados (`!**/models/config*.cfg`, como `config_cpu.cfg` e `config_gpu.cfg`), que são leves e garantem a reprodutibilidade do treinamento.
 * **Preservação de Estrutura:** Utiliza a estratégia de exceção com arquivos vazios `!/.gitkeep`. Isso garante que as pastas sejam criadas na máquina de outros desenvolvedores, mesmo sem enviar os dados que deveriam estar dentro delas. Nas pastas `models/`, os próprios arquivos `config*.cfg` versionados já cumprem esse papel de manter a estrutura.

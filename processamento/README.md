@@ -10,7 +10,8 @@ O fluxo desta pasta segue o seguinte padrão: dados brutos são ingeridos, passa
 
 ```         
 processamento/
-├── .env                           # Arquivo de variáveis de ambiente
+├── .env                           # Arquivo de variáveis de ambiente (não versionado)
+├── .env.example                   # Modelo versionado do .env (contém TOKEN_API_OUVIDORIA=)
 ├── docker-compose.yml             # Configuração do container Docker
 ├── data/                          # Diretório de armazenamento de dados
 │   ├── raw/                       # Dados brutos (entrada)
@@ -99,7 +100,11 @@ Armazena os arquivos PDF gerados após o processamento. Estes documentos contêm
 
 ### Executando o Processamento
 
-1.  **Crie o arquivo `.env`**: Na raiz da pasta `processamento`/, crie um arquivo vazio chamado `.env`. Abra-o em um editor de texto, adicione a varíavel `TOKEN_API_OUVIDORIA`. Se atente ao tipo de arquivo, ele não pode possuir nenhum tipo, sendo apenas `.env`.
+1.  **Crie o arquivo `.env`**: Na raiz da pasta `processamento`/, crie um arquivo vazio chamado `.env`. A forma mais simples é copiar o modelo versionado `.env.example` (que já contém a variável `TOKEN_API_OUVIDORIA=`) para `.env` e preencher o token. Se atente ao tipo de arquivo, ele não pode possuir nenhum tipo, sendo apenas `.env`.
+
+``` bash
+cp .env.example .env
+```
 
 - Exemplo Correto: `.env`
 
