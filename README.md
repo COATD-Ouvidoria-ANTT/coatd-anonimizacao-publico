@@ -134,7 +134,7 @@ docker build -t motor-anonimizacao-base -f Dockerfile .
 
 ### 2. Construção do Motor Avançado (Requer Placa de Vídeo NVIDIA)
 
-**Para desempenho superior e estado da arte.** Caso sua unidade disponha de servidores ou estações com aceleração gráfica dedicada (ex: NVIDIA RTX), esta é a versão definitiva. Ela habilita o uso de *Transformers* (BERTimbau) — a arquitetura de ponta por trás das IAs modernas. O nível de precisão, compreensão de contexto e desempenho de rotulação é **extremamente maior**.
+**Para desempenho superior.** Caso sua unidade disponha de servidores ou estações com aceleração gráfica dedicada (ex: NVIDIA RTX), esta é a versão definitiva. Ela habilita o uso de *Transformers* (BERTimbau) — a arquitetura de ponta por trás das IAs modernas. O nível de precisão, compreensão de contexto e desempenho de rotulação é **extremamente maior**.
 > *Se a sua máquina possui uma placa de vídeo dedicada, o uso do modelo BERT é o mais recomendado. Baixe **as duas imagens** e siga com o pipeline do projeto, que se inicia na pasta `processamento/`*
 
 ```bash
